@@ -1,3 +1,5 @@
+import org.gradle.kotlin.dsl.implementation
+
 plugins {
 	java
 	id("org.springframework.boot") version "3.3.13"
@@ -67,6 +69,10 @@ dependencies {
 	// Test
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+
+	implementation("org.springframework.boot:spring-boot-starter-webflux")
+
 }
 
 
