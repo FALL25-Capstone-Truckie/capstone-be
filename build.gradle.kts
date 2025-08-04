@@ -75,6 +75,13 @@ dependencies {
 	// Test
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+	//firebase
+	implementation ("com.google.firebase:firebase-admin:9.3.0")
+
+	//socket
+	implementation("org.springframework:spring-websocket:6.2.3")
+	implementation("org.springframework:spring-messaging:6.2.2")
 }
 
 
