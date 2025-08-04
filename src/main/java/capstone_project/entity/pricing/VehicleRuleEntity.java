@@ -1,7 +1,7 @@
 package capstone_project.entity.pricing;
 
-import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
@@ -14,15 +14,15 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "pricing_rules", schema = "public", catalog = "capstone-project")
+@Table(name = "vehicle_rules", schema = "public", catalog = "capstone-project")
 @Data
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class PricingRuleEntity extends BaseEntity {
+public class VehicleRuleEntity extends BaseEntity {
     @Size(max = 100)
-    @Column(name = "pricing_rule_name", length = 100)
-    private String pricingRuleName;
+    @Column(name = "vehicle_rule_name", length = 100)
+    private String vehicleRuleName;
 
     @Column(name = "min_weight")
     private BigDecimal minWeight;
@@ -65,5 +65,4 @@ public class PricingRuleEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_type_id")
     private VehicleTypeEntity vehicleTypeEntity;
-
 }

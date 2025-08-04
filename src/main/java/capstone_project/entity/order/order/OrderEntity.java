@@ -18,7 +18,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class OrderEntity extends BaseEntity {
     @Column(name = "total_price")
-    private Double totalPrice;
+    private BigDecimal totalPrice;
 
     @Size(max = 100)
     @Column(name = "notes", length = 100)

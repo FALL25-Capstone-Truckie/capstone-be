@@ -7,6 +7,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.response.common.ApiResponse;
 import io.jsonwebtoken.ExpiredJwtException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -99,6 +100,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.fail("Not found this data", HttpStatus.NOT_FOUND.value()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.fail("Wrong format UUID.", HttpStatus.BAD_REQUEST.value()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
