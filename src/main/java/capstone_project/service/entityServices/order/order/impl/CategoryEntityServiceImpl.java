@@ -31,4 +31,9 @@ public class CategoryEntityServiceImpl implements CategoryEntityService {
     public List<CategoryEntity> findAll() {
         return categoryRepository.findAll();
     }
+
+    @Override
+    public Optional<CategoryEntity> findByCategoryName(String categoryName) {
+        return categoryRepository.findByCategoryName(categoryName);
+    }
 }

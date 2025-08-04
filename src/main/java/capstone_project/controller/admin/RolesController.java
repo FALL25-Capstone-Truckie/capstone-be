@@ -27,8 +27,8 @@ public class RolesController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @GetMapping("/{roleName}/name")
-    public ResponseEntity<ApiResponse<RoleResponse>> getRoleByName(@PathVariable("roleName") String roleName) {
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<RoleResponse>> getRoleByName(@RequestParam String roleName) {
         final var result = roleService.getRoleByName(roleName);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }

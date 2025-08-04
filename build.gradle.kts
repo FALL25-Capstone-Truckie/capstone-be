@@ -43,7 +43,8 @@ dependencies {
 
 	// JWT
 	implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-	runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
 	runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
 	// Micrometer / tracing
@@ -68,6 +69,9 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-redis:3.5.4")
 	implementation("org.springframework.boot:spring-boot-starter-cache:3.5.4")
 	implementation("org.apache.commons:commons-pool2:2.12.1")
+
+	// PDF
+	implementation("com.itextpdf:itextpdf:5.5.13.4")
 
 	// Jackson
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")

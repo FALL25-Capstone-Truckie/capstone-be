@@ -45,6 +45,29 @@ public class SecurityConfigurer {
     @Value("${vehicle-type.api.base-path}")
     private String vehicleTypeApiBasePath;
 
+    @Value("${category.api.base-path}")
+    private String categoryApiBasePath;
+
+    @Value("${category-pricing-detail.api.base-path}")
+    private String categoryPricingDetailApiBasePath;
+
+    @Value("${vehicle-rule.api.base-path}")
+    private String vehicleRuleApiBasePath;
+
+    @Value("${distance-rule.api.base-path}")
+    private String distanceRuleApiBasePath;
+
+    @Value("${basing-price.api.base-path}")
+    private String basingPriceApiBasePath;
+
+    @Value("${contract.api.base-path}")
+    private String contractApiBasePath;
+
+    @Value("${order.api.base-path}")
+    private String orderApiBasePath;
+
+
+
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -88,10 +111,25 @@ public class SecurityConfigurer {
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, vehicleTypeApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, categoryApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, categoryPricingDetailApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, distanceRuleApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, vehicleRuleApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, basingPriceApiBasePath + "/**").authenticated()
+//                        .requestMatchers(HttpMethod.GET, orderApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, contractApiBasePath + "/**").authenticated()
 
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(categoryApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(categoryPricingDetailApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(distanceRuleApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(vehicleRuleApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(basingPriceApiBasePath + "/**").hasAuthority("ADMIN")
+//                        .requestMatchers(orderApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(contractApiBasePath + "/**").hasAuthority("ADMIN")
+
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)

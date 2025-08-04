@@ -12,7 +12,11 @@ public enum ErrorEnum {
     INVALID_DATE_FORMAT(6, "Invalid date format. Expected format: yyyy-MM-dd."),
     ALREADY_EXISTED(9, "This is already exists"),
     NULL(13, "This field is null."),
-    NOT_FOUND(15, "Not found");
+    REQUIRED(14, "This field is required."),
+    NOT_FOUND(15, "Not found"),
+    INVALID(16, "Invalid request"),
+    ENUM_INVALID(17, "Invalid enum value"),
+    ;
     private final String message;
     private final long errorCode;
 
