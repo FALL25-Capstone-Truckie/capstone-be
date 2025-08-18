@@ -9,7 +9,6 @@ public record ContractResponse (
     String description,
     String attachFileUrl,
     String status,
-    String orderId,
-    String vehicleRuleId
+    String orderId
 ) {
 }

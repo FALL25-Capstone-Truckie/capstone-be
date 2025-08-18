@@ -1,6 +1,7 @@
 package capstone_project.entity.order.order;
 
 import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -19,10 +20,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class OrderDetailEntity extends BaseEntity {
     @Column(name = "weight")
-    private Double weight;
-
-    @Column(name = "quantity")
-    private Integer quantity;
+    private BigDecimal weight;
 
     @Size(max = 200)
     @Column(name = "description", length = 200)
@@ -62,7 +60,10 @@ public class OrderDetailEntity extends BaseEntity {
     private OrderEntity orderEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
-    private CategoryEntity category;
+    @JoinColumn(name = "order_size_id")
+    private OrderSizeEntity orderSizeEntity;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_assignment_id")
+    private VehicleAssignmentEntity vehicleAssignmentEntity;
 }
