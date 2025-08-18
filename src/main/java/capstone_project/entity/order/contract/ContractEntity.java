@@ -1,8 +1,7 @@
 package capstone_project.entity.order.contract;
 
-import capstone_project.entity.order.order.OrderEntity;
-import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.order.order.OrderEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -47,9 +46,4 @@ public class ContractEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")
     private OrderEntity orderEntity;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vehicle_rule_id")
-    private VehicleRuleEntity vehicleRuleEntity;
-
 }

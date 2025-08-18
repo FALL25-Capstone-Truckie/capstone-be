@@ -25,9 +25,6 @@ public record ContractRequest(
         String attachFileUrl,
 
         @NotBlank(message = "Order ID must not be blank")
-        String orderId,
-
-        @NotBlank(message = "Vehicle rule ID must not be blank")
-        String vehicleRuleId
+        String orderId
 ) {
 }
