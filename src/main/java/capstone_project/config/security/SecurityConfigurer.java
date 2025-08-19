@@ -45,6 +45,9 @@ public class SecurityConfigurer {
     @Value("${vehicle-type.api.base-path}")
     private String vehicleTypeApiBasePath;
 
+    @Value("room.api.base-path")
+    private String roomApiBasePath;
+
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -92,6 +95,7 @@ public class SecurityConfigurer {
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(roomApiBasePath+ "/**").hasAnyAuthority("ADMIN", "STAFF")
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)

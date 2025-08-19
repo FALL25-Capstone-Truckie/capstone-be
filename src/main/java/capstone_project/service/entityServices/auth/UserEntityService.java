@@ -4,6 +4,7 @@ package capstone_project.service.entityServices.auth;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.service.entityServices.common.BaseEntityService;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,4 +42,6 @@ public interface UserEntityService extends BaseEntityService<UserEntity, UUID> {
 //    UsersEntity createUser(UsersEntity usersEntity);
 
     Optional<UserEntity> getByUsernameWithRole(final String username);
+
+    List<UserEntity> getAllUsersByIds(List<UUID> ids);
 }

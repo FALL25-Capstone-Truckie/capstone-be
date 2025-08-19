@@ -3,15 +3,18 @@ package capstone_project.entity.chat;
 import com.google.cloud.firestore.annotation.DocumentId;
 import com.google.cloud.firestore.annotation.ServerTimestamp;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.sql.Timestamp;
+import java.time.Instant;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Chat {
+@Builder
+public class ChatEntity {
     @DocumentId
     private String chatId;
     private String roomId;
@@ -20,5 +23,5 @@ public class Chat {
     private String type;
     private String status;
     @ServerTimestamp
-    private Timestamp createdAt;
+    private Instant createdAt;
 }

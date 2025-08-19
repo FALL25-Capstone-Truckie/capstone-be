@@ -1,5 +1,6 @@
-package capstone_project.service.services.service;
+package capstone_project.service.services.redis.impl;
 
+import capstone_project.service.services.redis.RedisService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -8,7 +9,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class RedisService {
+public class RedisServiceImpl implements RedisService {
 
     private final RedisTemplate<String, Object> redisTemplate;
 

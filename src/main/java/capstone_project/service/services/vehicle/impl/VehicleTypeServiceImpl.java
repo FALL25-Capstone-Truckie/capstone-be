@@ -8,7 +8,7 @@ import capstone_project.dtos.response.vehicle.VehicleTypeResponse;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.service.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.redis.impl.RedisServiceImpl;
 import capstone_project.service.services.vehicle.VehicleTypeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +26,7 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
 
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final VehicleTypeMapper vehicleTypeMapper;
-    private final RedisService redisService;
+    private final RedisServiceImpl redisService;
 
     private static final String VEHICLE_TYPE_ALL_CACHE_KEY = "vehicleTypes:all";
     private static final String VEHICLE_TYPE_BY_ID_CACHE_KEY_PREFIX = "vehicleType:";

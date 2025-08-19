@@ -35,4 +35,6 @@ public interface UserRepository extends BaseRepository<UserEntity> {
 
     @Query("SELECT u FROM UserEntity u JOIN FETCH u.role WHERE u.username = :username")
     Optional<UserEntity> findByUsernameWithRole(@Param("username") String username);
+
+
 }

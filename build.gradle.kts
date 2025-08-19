@@ -22,6 +22,7 @@ allprojects {
 		set("lombokVersion", "1.18.26")
 		set("mapstructVersion", "1.5.5.Final")
 	}
+
 }
 
 dependencies {
@@ -81,7 +82,12 @@ dependencies {
 
 	//socket
 	implementation("org.springframework:spring-websocket:6.2.3")
-	implementation("org.springframework:spring-messaging:6.2.2")
+	implementation("org.springframework:spring-messaging:6.1.6")
+
+	//kafka
+	implementation("org.apache.kafka:kafka-clients:3.9.0")
+	implementation("org.springframework.kafka:spring-kafka:3.3.8")
+	testImplementation("org.springframework.kafka:spring-kafka-test")
 }
 
 

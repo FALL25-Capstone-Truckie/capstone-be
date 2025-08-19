@@ -8,7 +8,7 @@ public record CreateRoomRequest(
         @NotNull(message = "OrderId is required")
          String orderId,
         @NotNull(message = "Participants is required")
-         List<String> participants
+         List<String> userIds
 ) {
 
 }
