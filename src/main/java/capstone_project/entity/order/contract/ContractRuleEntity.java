@@ -35,7 +35,7 @@ public class ContractRuleEntity extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_rule_id")
-    private VehicleRuleEntity vehicleRule;
+    private VehicleRuleEntity vehicleRuleEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_id")

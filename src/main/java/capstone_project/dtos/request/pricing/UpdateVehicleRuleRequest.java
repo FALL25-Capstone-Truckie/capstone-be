@@ -4,7 +4,6 @@ import capstone_project.common.enums.VehicleRuleEnum;
 import capstone_project.common.enums.enumValidator.EnumValidator;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotBlank;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -46,10 +45,8 @@ public record UpdateVehicleRuleRequest(
 
         String status,
 
-        @NotBlank(message = "Vehicle ID is required")
         String vehicleTypeId,
 
-        @NotBlank(message = "Category ID is required")
         String categoryId
 ) {
 }

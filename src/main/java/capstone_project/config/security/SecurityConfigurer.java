@@ -63,9 +63,14 @@ public class SecurityConfigurer {
     @Value("${contract.api.base-path}")
     private String contractApiBasePath;
 
+    @Value("${contract-rule.api.base-path}")
+    private String contractRuleApiBasePath;
+
     @Value("${order.api.base-path}")
     private String orderApiBasePath;
 
+    @Value("${penalty.api.base-path}")
+    private String penaltyApiBasePath;
 
 
     public static final String[] SWAGGER_ENDPOINTS = {
@@ -78,7 +83,7 @@ public class SecurityConfigurer {
 
     public static final String[] PUBLIC_ENDPOINTS = Stream.concat(
             Stream.of(
-                    "/api/v1/auth/**",
+                    "/api/v1/auths/**",
                     "/api/v1/address/**",
                     "/api/v1/emails/**",
                     "/app/**",
@@ -119,6 +124,8 @@ public class SecurityConfigurer {
                         .requestMatchers(HttpMethod.GET, basingPriceApiBasePath + "/**").authenticated()
 //                        .requestMatchers(HttpMethod.GET, orderApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, contractApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, contractRuleApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, penaltyApiBasePath + "/**").authenticated()
 
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority("ADMIN")
@@ -130,6 +137,8 @@ public class SecurityConfigurer {
                         .requestMatchers(basingPriceApiBasePath + "/**").hasAuthority("ADMIN")
 //                        .requestMatchers(orderApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(contractApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(penaltyApiBasePath + "/**").hasAuthority("ADMIN")
 
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())

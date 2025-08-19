@@ -53,14 +53,11 @@ public class RedisService {
         if (clazz.isInstance(value)) {
             return clazz.cast(value);
         }
-        return null;
         try {
-            Object value = redisTemplate.opsForValue().get(key);
             if (value == null) {
                 return null;
             }
 
-            // Value should be a JSON string
             String jsonString = value.toString();
             return objectMapper.readValue(jsonString, clazz);
 
@@ -79,9 +76,8 @@ public class RedisService {
         if (value instanceof List<?>) {
             return (List<T>) value;
         }
-        return null;
+//        return null;
         try {
-            Object value = redisTemplate.opsForValue().get(key);
             if (value == null) {
                 return null;
             }

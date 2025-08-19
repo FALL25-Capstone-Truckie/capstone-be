@@ -38,8 +38,8 @@ public class VehicleRuleEntityServiceImpl implements VehicleRuleEntityService {
     }
 
     @Override
-    public Optional<VehicleRuleEntity> findByPricingRuleName(String pricingRuleName) {
-        return vehicleRuleRepository.findByVehicleRuleName(pricingRuleName);
+    public Optional<VehicleRuleEntity> findByVehicleRuleName(String vehicleRuleName) {
+        return vehicleRuleRepository.findByVehicleRuleName(vehicleRuleName);
     }
 
     @Override
@@ -50,5 +50,10 @@ public class VehicleRuleEntityServiceImpl implements VehicleRuleEntityService {
     @Override
     public List<VehicleRuleEntity> findSuitableVehicleRules(BigDecimal weight) {
         return vehicleRuleRepository.findSuitableVehicleRules(weight);
+    }
+
+    @Override
+    public List<VehicleRuleEntity> findAllByCategoryId(UUID categoryId) {
+        return vehicleRuleRepository.findAllByCategoryId(categoryId);
     }
 }

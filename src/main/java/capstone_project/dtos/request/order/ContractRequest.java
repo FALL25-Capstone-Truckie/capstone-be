@@ -2,8 +2,10 @@ package capstone_project.dtos.request.order;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record ContractRequest(
         @NotBlank(message = "Contract name must not be blank")
@@ -25,6 +27,9 @@ public record ContractRequest(
         String attachFileUrl,
 
         @NotBlank(message = "Order ID must not be blank")
-        String orderId
+        String orderId,
+
+        @NotNull(message = "Contract rules must not be null")
+        List<ContractRuleRequest> contractRules
 ) {
 }

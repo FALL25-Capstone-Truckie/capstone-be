@@ -1,5 +1,6 @@
 package capstone_project.config.admin;
 
+import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.entity.auth.RoleEntity;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.common.enums.RoleTypeEnum;
@@ -46,7 +47,7 @@ public class DataInitializer {
                     .password(passwordEncoder.encode(password))
                     .email(email)
                     .fullName("Administrator")
-                    .status("active")
+                    .status(CommonStatusEnum.ACTIVE.name())
                     .dateOfBirth(LocalDate.of(2000, 1, 1))
                     .createdAt(LocalDateTime.now())
                     .role(adminRole)

@@ -9,7 +9,9 @@ import capstone_project.dtos.request.pricing.UpdateVehicleRuleRequest;
 import capstone_project.dtos.request.pricing.VehicleRuleRequest;
 import capstone_project.dtos.response.pricing.VehicleRuleResponse;
 import capstone_project.entity.pricing.VehicleRuleEntity;
+import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.service.entityServices.pricing.VehicleRuleEntityService;
+import capstone_project.service.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.order.VehicleRuleMapper;
 import capstone_project.service.services.pricing.VehicleRuleService;
 import lombok.RequiredArgsConstructor;
@@ -17,9 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.Comparator;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 public class VehicleRuleServiceImpl implements VehicleRuleService {
 
     private final VehicleRuleEntityService vehicleRuleEntityService;
+    private final VehicleTypeEntityService vehicleTypeEntityService;
     private final VehicleRuleMapper vehicleRuleMapper;
 
     @Override
@@ -61,9 +62,31 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
     public VehicleRuleResponse createVehicleRule(VehicleRuleRequest vehicleRuleRequest) {
         log.info("Creating new vehicle rule");
 
+        if (vehicleRuleRequest == null) {
+            log.error("Vehicle rule request cannot be null");
+            throw new BadRequestException("Vehicle rule request cannot be null", ErrorEnum.REQUIRED.getErrorCode());
+        }
+
         if (vehicleRuleRequest.categoryId() == null || vehicleRuleRequest.vehicleTypeId() == null) {
             log.error("Category ID and Vehicle Type ID are required for creating a vehicle rule");
-            throw new BadRequestException("Category ID and Vehicle Type ID are required", ErrorEnum.REQUIRED.getErrorCode());
+            throw new BadRequestException("Category ID and Vehicle Type ID are required",
+                    ErrorEnum.REQUIRED.getErrorCode());
+        }
+
+        UUID categoryUuid = UUID.fromString(vehicleRuleRequest.categoryId());
+        UUID vehicleTypeUuid = UUID.fromString(vehicleRuleRequest.vehicleTypeId());
+
+        VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findById(vehicleTypeUuid)
+                .orElseThrow(() -> {
+                    log.error("Vehicle type with ID {} not found", vehicleTypeUuid);
+                    return new NotFoundException("Vehicle type not found", ErrorEnum.NOT_FOUND.getErrorCode());
+                });
+
+        Optional<VehicleRuleEntity> existingRule = vehicleRuleEntityService.findByVehicleRuleName(vehicleRuleRequest.vehicleRuleName());
+        if (existingRule.isPresent()) {
+            log.error("Vehicle rule with name '{}' already exists", vehicleRuleRequest.vehicleRuleName());
+            throw new BadRequestException("Vehicle rule with this name already exists",
+                    ErrorEnum.ALREADY_EXISTED.getErrorCode());
         }
 
         try {
@@ -73,17 +96,21 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
                     ErrorEnum.ENUM_INVALID.getErrorCode());
         }
 
-        UUID categoryUuid = UUID.fromString(vehicleRuleRequest.categoryId());
-        UUID vehicleTypeUuid = UUID.fromString(vehicleRuleRequest.vehicleTypeId());
+        if (!vehicleRuleRequest.vehicleRuleName().equalsIgnoreCase(vehicleTypeEntity.getVehicleTypeName())) {
+            log.error("Vehicle rule name '{}' does not match vehicle type name '{}'",
+                    vehicleRuleRequest.vehicleRuleName(), vehicleTypeEntity.getVehicleTypeName());
+            throw new BadRequestException("Vehicle rule name must match vehicle type name ("
+                    + vehicleTypeEntity.getVehicleTypeName() + ")", ErrorEnum.REQUIRED.getErrorCode());
+        }
 
-        if (vehicleRuleEntityService.findByCategoryIdAndVehicleTypeEntityIdAndVehicleRuleName(categoryUuid, vehicleTypeUuid, vehicleRuleRequest.vehicleRuleName()).isPresent()) {
+        if (vehicleRuleEntityService.findByCategoryIdAndVehicleTypeEntityIdAndVehicleRuleName(
+                categoryUuid, vehicleTypeUuid, vehicleRuleRequest.vehicleRuleName()).isPresent()) {
             log.error("Vehicle rule with category ID {} and vehicle type ID {} already exists", categoryUuid, vehicleTypeUuid);
             throw new BadRequestException(ErrorEnum.ALREADY_EXISTED.getMessage(),
                     ErrorEnum.ALREADY_EXISTED.getErrorCode());
         }
 
         VehicleRuleEntity vehicleRuleEntity = vehicleRuleMapper.mapRequestToEntity(vehicleRuleRequest);
-
         vehicleRuleEntity.setStatus(CommonStatusEnum.ACTIVE.name());
 
         VehicleRuleEntity savedEntity = vehicleRuleEntityService.save(vehicleRuleEntity);
@@ -95,11 +122,6 @@ public class VehicleRuleServiceImpl implements VehicleRuleService {
     @Override
     public VehicleRuleResponse updateVehicleRule(UUID id, UpdateVehicleRuleRequest updateVehicleRuleRequest) {
         log.info("Updating vehicle rule with ID: {}", id);
-
-        if (updateVehicleRuleRequest.categoryId() == null || updateVehicleRuleRequest.vehicleTypeId() == null) {
-            log.error("Category ID and Vehicle Type ID are required for updating a vehicle rule");
-            throw new BadRequestException("Category ID and Vehicle Type ID are required", ErrorEnum.REQUIRED.getErrorCode());
-        }
 
         VehicleRuleEntity existingEntity = vehicleRuleEntityService.findById(id)
                 .orElseThrow(() -> new NotFoundException(

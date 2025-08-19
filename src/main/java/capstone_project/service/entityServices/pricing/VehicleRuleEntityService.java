@@ -11,9 +11,11 @@ import java.util.UUID;
 public interface VehicleRuleEntityService extends BaseEntityService<VehicleRuleEntity, UUID> {
     Optional<VehicleRuleEntity> findByCategoryIdAndVehicleTypeEntityIdAndVehicleRuleName(UUID categoryId, UUID vehicleTypeId, String vehicleRuleName);
 
-    Optional<VehicleRuleEntity> findByPricingRuleName(String pricingRuleName);
+    Optional<VehicleRuleEntity> findByVehicleRuleName(String vehicleRuleName);
 
     Optional<VehicleRuleEntity> findByVehicleTypeId(UUID vehicleTypeId);
 
     List<VehicleRuleEntity> findSuitableVehicleRules(BigDecimal weight);
+
+    List<VehicleRuleEntity> findAllByCategoryId(UUID categoryId);
 }

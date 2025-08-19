@@ -14,6 +14,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
 
+
     private final OrderDetailRepository orderDetailRepository;
 
     @Override
@@ -30,4 +31,10 @@ public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
     public List<OrderDetailEntity> findAll() {
         return orderDetailRepository.findAll();
     }
+
+    @Override
+    public List<OrderDetailEntity> findOrderDetailEntitiesByOrderEntityId(UUID orderDetailEntityId) {
+        return orderDetailRepository.findOrderDetailEntitiesByOrderEntityId(orderDetailEntityId);
+    }
+
 }

@@ -20,4 +20,6 @@ public interface VehicleRuleRepository extends BaseRepository<VehicleRuleEntity>
             "WHERE (v.minWeight IS NULL OR v.minWeight <= :weight) " +
             "AND (v.maxWeight IS NULL OR v.maxWeight >= :weight)")
     List<VehicleRuleEntity> findSuitableVehicleRules(BigDecimal weight);
+
+    List<VehicleRuleEntity> findAllByCategoryId(UUID categoryId);
 }
