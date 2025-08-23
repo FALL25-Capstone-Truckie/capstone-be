@@ -54,8 +54,11 @@ jobs:
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B4B0D3E33CD34640929CB198C73A98F7 }}
 
       - name: Deploy to Azure Web App
+        id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'Truckie'
+          app-name: 'truck-api'
           slot-name: 'Production'
-          package: '*.jar'
+          package: build/libs/*SNAPSHOT.jar
+
+
