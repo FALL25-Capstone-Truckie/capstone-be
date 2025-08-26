@@ -136,7 +136,7 @@ public class SecurityConfigurer {
                         .requestMatchers(distanceRuleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(vehicleRuleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(basingPriceApiBasePath + "/**").hasAuthority("ADMIN")
-//                        .requestMatchers(orderApiBasePath + "/**").hasAuthority("ADMIN")
+                        .requestMatchers(orderApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(contractApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(penaltyApiBasePath + "/**").hasAuthority("ADMIN")

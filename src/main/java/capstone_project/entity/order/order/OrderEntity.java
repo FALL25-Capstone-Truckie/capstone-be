@@ -9,6 +9,8 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "orders", schema = "public", catalog = "capstone-project")
@@ -65,4 +67,8 @@ public class OrderEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private CategoryEntity category;
+
+    @OneToMany(mappedBy = "orderEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<OrderDetailEntity> orderDetailEntities = new ArrayList<>();
+
 }

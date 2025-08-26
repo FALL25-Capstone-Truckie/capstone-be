@@ -1,0 +1,24 @@
+package capstone_project.service.services.order.order;
+
+import capstone_project.common.enums.OrderStatusEnum;
+import capstone_project.dtos.request.order.CreateOrderDetailRequest;
+import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
+import capstone_project.dtos.response.order.CreateOrderResponse;
+import capstone_project.dtos.response.order.GetOrderDetailResponse;
+
+import java.util.List;
+import java.util.UUID;
+
+public interface OrderDetailService {
+    GetOrderDetailResponse changeStatusOrderDetailExceptTroubles(UUID orderDetailId, OrderStatusEnum orderDetailStatus);
+
+    GetOrderDetailResponse changeStatusOrderDetailForTroublesByDriver(UUID orderDetailId);
+
+    CreateOrderResponse createOrderDetailByOrderId(UUID orderId, List<CreateOrderDetailRequest> createOrderDetailRequest);
+
+    List<GetOrderDetailResponse> getOrderDetailByOrderIdResponseList(UUID orderId);
+
+    GetOrderDetailResponse getOrderDetailById(UUID orderDetailId);
+
+    GetOrderDetailResponse updateOrderDetailBasic(UpdateOrderDetailRequest updateOrderDetailRequest);
+}

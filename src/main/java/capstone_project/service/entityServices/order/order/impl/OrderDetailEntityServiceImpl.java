@@ -5,6 +5,7 @@ import capstone_project.repository.order.order.OrderDetailRepository;
 import capstone_project.service.entityServices.order.order.OrderDetailEntityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -36,5 +37,16 @@ public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
     public List<OrderDetailEntity> findOrderDetailEntitiesByOrderEntityId(UUID orderDetailEntityId) {
         return orderDetailRepository.findOrderDetailEntitiesByOrderEntityId(orderDetailEntityId);
     }
+
+    @Override
+    @Transactional
+    public List<OrderDetailEntity> saveAllOrderDetailEntities(List<OrderDetailEntity> orderDetailEntities) {
+        List<OrderDetailEntity> savedEntities = orderDetailRepository.saveAll(orderDetailEntities);
+        if(savedEntities.size() == orderDetailEntities.size()){
+            return savedEntities;
+        }
+        return null;
+    }
+
 
 }
