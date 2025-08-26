@@ -46,15 +46,6 @@ public class OrderDetailEntity extends BaseEntity {
     @Column(name = "end_time")
     private LocalDateTime endTime;
 
-    @Column(name = "height")
-    private BigDecimal height;
-
-    @Column(name = "width")
-    private BigDecimal width;
-
-    @Column(name = "length")
-    private BigDecimal length;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")
     private OrderEntity orderEntity;
