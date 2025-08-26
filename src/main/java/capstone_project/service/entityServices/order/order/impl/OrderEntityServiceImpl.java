@@ -30,4 +30,14 @@ public class OrderEntityServiceImpl implements OrderEntityService {
     public List<OrderEntity> findAll() {
         return orderRepository.findAll();
     }
+
+    @Override
+    public List<OrderEntity> findBySenderId(UUID senderId) {
+        return orderRepository.findBySenderId(senderId);
+    }
+
+    @Override
+    public List<OrderEntity> findByDeliveryAddressId(UUID deliveryAddressId) {
+        return orderRepository.findByDeliveryAddressId(deliveryAddressId);
+    }
 }

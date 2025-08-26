@@ -8,4 +8,8 @@ import java.util.UUID;
 
 public interface OrderDetailEntityService extends BaseEntityService<OrderDetailEntity, UUID> {
     List<OrderDetailEntity> findOrderDetailEntitiesByOrderEntityId(UUID orderDetailEntityId);
+
+    List<OrderDetailEntity> saveAllOrderDetailEntities(List<OrderDetailEntity> orderDetailEntities);
+
+
 }
