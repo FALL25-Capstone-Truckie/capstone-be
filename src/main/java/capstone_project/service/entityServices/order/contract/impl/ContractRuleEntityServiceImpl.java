@@ -38,6 +38,16 @@ public class ContractRuleEntityServiceImpl implements ContractRuleEntityService 
     }
 
     @Override
+    public void deleteById(UUID id) {
+        contractRuleRepository.deleteById(id);
+    }
+
+    @Override
+    public void deleteByContractEntityId(UUID contractId) {
+        contractRuleRepository.deleteByContractEntityId(contractId);
+    }
+
+    @Override
     public ContractRuleEntity save(ContractRuleEntity entity) {
         return contractRuleRepository.save(entity);
     }

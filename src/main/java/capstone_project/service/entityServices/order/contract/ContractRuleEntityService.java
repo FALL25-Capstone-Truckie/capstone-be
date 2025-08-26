@@ -16,4 +16,8 @@ public interface ContractRuleEntityService extends BaseEntityService<ContractRul
     Optional<ContractRuleEntity> findContractRuleEntityByContractEntityId(UUID contractId);
 
     List<UUID> findAssignedOrderDetailIdsByContractRule(UUID contractRuleId);
+
+    void deleteById(UUID id);
+
+    void deleteByContractEntityId(UUID contractId);
 }

@@ -34,6 +34,10 @@ public class ContractController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    /*
+    * API này chỉ tạo hợp đồng rỗng (trong đó chưa có rule nào được áp dụng) --> chưa tính được tiền
+    * qua sử dụng API createListContractRules
+    * */
     @PostMapping()
     public ResponseEntity<ApiResponse<ContractResponse>> createContract(@RequestBody @Valid ContractRequest contractRequest) {
         final var result = contractService.createContract(contractRequest);
@@ -52,7 +56,10 @@ public class ContractController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @PostMapping("{orderId}/assign-vehicles")
+    /*
+    * API này dùng để suggest, nếu thấy suggest hợp lý, thì sử dụng createBothContractAndContractRule (/both) để tạo hợp đồng luôn
+    * */
+    @PostMapping("{orderId}/suggest-assign-vehicles")
     public ResponseEntity<ApiResponse<List<ContractRuleAssignResponse>>> assignVehicles(@PathVariable UUID orderId) {
         final var result = contractService.assignVehicles(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));

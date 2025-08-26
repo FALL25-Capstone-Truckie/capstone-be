@@ -34,12 +34,18 @@ public class ContractRuleController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @PostMapping()
-    public ResponseEntity<ApiResponse<ContractRuleResponse>> createContractRule(@Valid @RequestBody ContractRuleRequest contractRuleRequest) {
-        final var result = contractRuleService.createContract(contractRuleRequest);
-        return ResponseEntity.ok(ApiResponse.ok(result));
-    }
+//    /*
+//     * API này là add tay từng cái một rule vào hợp đồng đã có sẵn
+//     * */
+//    @PostMapping()
+//    public ResponseEntity<ApiResponse<ContractRuleResponse>> createContractRule(@Valid @RequestBody ContractRuleRequest contractRuleRequest) {
+//        final var result = contractRuleService.createContractRule(contractRuleRequest);
+//        return ResponseEntity.ok(ApiResponse.ok(result));
+//    }
 
+    /*
+     * API này là tạo list rule vào hợp đồng đã có sẵn
+     * */
     @PostMapping("/list")
     public ResponseEntity<ApiResponse<ListContractRuleAssignResult>> createListContractRules(@RequestBody
                                                                                            @Valid List<ContractRuleRequest> contractRuleRequests) {
@@ -49,7 +55,7 @@ public class ContractRuleController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ContractRuleResponse>> updateContractRule(@PathVariable UUID id, @RequestBody @Valid ContractRuleRequest contractRuleRequest) {
-        final var result = contractRuleService.updateContract(id, contractRuleRequest);
+        final var result = contractRuleService.updateContractRule(id, contractRuleRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 

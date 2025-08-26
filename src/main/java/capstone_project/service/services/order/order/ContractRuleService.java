@@ -12,13 +12,15 @@ public interface ContractRuleService {
 
     ContractRuleResponse getContractById(UUID id);
 
-    ContractRuleResponse createContract(ContractRuleRequest contractRuleRequest);
+    ContractRuleResponse createContractRule(ContractRuleRequest contractRuleRequest);
 
     ListContractRuleAssignResult createListContractRules(List<ContractRuleRequest> contractRuleRequests);
 
-    ContractRuleResponse updateContract(UUID id, ContractRuleRequest contractRuleRequest);
+    ContractRuleResponse updateContractRule(UUID id, ContractRuleRequest contractRuleRequest);
 
-    void deleteContract(UUID id);
+    void deleteContractRule(UUID id);
+
+    void deleteAllContractRulesByContract(UUID contractId);
 
 
 }
