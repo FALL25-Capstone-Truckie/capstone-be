@@ -72,9 +72,14 @@ public class SecurityConfigurer {
     @Value("${penalty.api.base-path}")
     private String penaltyApiBasePath;
 
+    @Value("${order.api.base-path}")
+    private String orderBasePath;
 
     @Value("${order-detail.api.base-path}")
     private String orderDetailApiBasePath;
+
+    @Value("${order-size.api.base-path}")
+    private String orderSizeBasePath;
 
 
     public static final String[] SWAGGER_ENDPOINTS = {
@@ -145,6 +150,8 @@ public class SecurityConfigurer {
                         .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(penaltyApiBasePath + "/**").hasAuthority("ADMIN")
                         .requestMatchers(orderDetailApiBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
+                        .requestMatchers(orderBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
+                        .requestMatchers(orderSizeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF")
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)
