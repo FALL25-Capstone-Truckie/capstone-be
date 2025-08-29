@@ -23,4 +23,6 @@ public interface OrderDetailService {
     GetOrderDetailResponse updateOrderDetailBasicInPendingOrProcessing(UpdateOrderDetailRequest updateOrderDetailRequest);
 
     boolean changeStatusOrderDetailOnlyForAdmin(UUID orderId, UUID orderDetailId, OrderStatusEnum status);
+
+    List<GetOrderDetailResponse> updateVehicleAssigmentForEachOrderDetails(UUID orderId);
 }

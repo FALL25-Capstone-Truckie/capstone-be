@@ -1,5 +1,6 @@
 package capstone_project.service.services.order.order.impl;
 
+import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
@@ -68,6 +69,14 @@ public class OrderServiceImpl implements OrderService {
         CustomerEntity sender = customerEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.senderId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "sender not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        if(sender.getStatus().equals(CommonStatusEnum.INACTIVE.name())){
+            log.error("[Create Order and OrderDetails] Bat Dau Chien ");
+            throw new BadRequestException(
+                    ErrorEnum.INVALID.getMessage() + " Account customer's status is inactive so cannot create order  ",
+                    ErrorEnum.INVALID.getErrorCode()
+            );
+        }
 
         AddressEntity deliveryAddress = addressEntityService.findContractRuleEntitiesById(UUID.fromString(orderRequest.deliveryAddressId()))
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "deliveryAddress not found",
