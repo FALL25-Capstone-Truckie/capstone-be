@@ -30,4 +30,14 @@ public class IssueTypeEntityServiceImpl implements IssueTypeEntityService {
     public List<IssueTypeEntity> findAll() {
         return issueTypeRepository.findAll();
     }
+
+    @Override
+    public List<IssueTypeEntity> findByIssueTypeNameContaining(String name) {
+        return issueTypeRepository.findByIssueTypeNameContaining(name);
+    }
+
+    @Override
+    public IssueTypeEntity findByIssueTypeName(String name) {
+        return issueTypeRepository.findByIssueTypeName(name);
+    }
 }
