@@ -335,6 +335,9 @@ public class OrderServiceImpl implements OrderService {
                             .orElseThrow(() -> new NotFoundException(
                                     ErrorEnum.NOT_FOUND.getMessage() + " orderSize with id: " + request.orderSizeId(),
                                     ErrorEnum.NOT_FOUND.getErrorCode()));
+                    if(orderSizeEntity.getMaxWeight().compareTo(request.weight()) < 1){
+                        throw new BadRequestException(ErrorEnum.INVALID_REQUEST.getMessage() + "orderSize's max weight have to be more than detail's weight", ErrorEnum.NOT_FOUND.getErrorCode());
+                    }
                     return OrderDetailEntity.builder()
                             .weight(request.weight())
                             .description(request.description())
