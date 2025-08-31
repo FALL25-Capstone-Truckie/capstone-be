@@ -90,6 +90,11 @@ public class SecurityConfigurer {
     @Value("${issue-image.api.base-path}")
     private String issueImageBasePath;
 
+    @Value("${distance.api.base-path}}")
+    private String distanceBasePath;
+
+
+
 
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
@@ -164,6 +169,7 @@ public class SecurityConfigurer {
                         .requestMatchers(issueBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(orderSizeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF")
+                        .requestMatchers(distanceBasePath + "/**").hasAnyAuthority("CUSTOMER","DRIVER","ADMIN","STAFF")
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)
