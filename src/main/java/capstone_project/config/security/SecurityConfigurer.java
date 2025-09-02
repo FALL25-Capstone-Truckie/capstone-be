@@ -94,6 +94,9 @@ public class SecurityConfigurer {
     @Value("${distance.api.base-path}")
     private String distanceBasePath;
 
+    @Value("${photo-completion.api.base-path}}")
+    private String photoCompletionBasePath;
+
     @Value("${device-type.api.base-path}")
     private String deviceTypeBasePath;
 
@@ -177,6 +180,7 @@ public class SecurityConfigurer {
                         .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(orderSizeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF")
                         .requestMatchers(distanceBasePath + "/**").hasAnyAuthority("CUSTOMER","DRIVER","ADMIN","STAFF")
+                        .requestMatchers(photoCompletionBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
                         .requestMatchers(deviceTypeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(deviceBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
                         .anyRequest().authenticated())
