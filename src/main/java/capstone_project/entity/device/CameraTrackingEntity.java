@@ -29,9 +29,6 @@ public class CameraTrackingEntity extends BaseEntity {
     @Column(name = "status", length = 100)
     private String status;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_detail_id")
-    private OrderDetailEntity orderDetail;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
