@@ -33,4 +33,16 @@ public class AddressEntityServiceImpl implements AddressEntityService {
         return addressRepository.findAll();
 
     }
+
+    @Override
+    public List<AddressEntity> findByCustomerId(UUID customerId) {
+        return addressRepository.findByCustomerId(customerId);
+    }
+
+
+    @Override
+    public Optional<AddressEntity> findSenderAddressByCustomerId(UUID customerId) {
+        return addressRepository.findSenderAddressByCustomerId(customerId);
+    }
+
 }

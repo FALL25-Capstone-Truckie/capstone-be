@@ -10,4 +10,7 @@ public interface OrderEntityService extends BaseEntityService<OrderEntity, UUID>
     List<OrderEntity> findBySenderId(UUID senderId);
 
     List<OrderEntity> findByDeliveryAddressId(UUID deliveryAddressId);
+
+
+
 }

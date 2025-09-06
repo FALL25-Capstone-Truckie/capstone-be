@@ -17,6 +17,8 @@ public interface AddressService {
 
     AddressResponse getAddressById(UUID id);
 
+    AddressResponse getAddressesByCustomerId(UUID id);
+
 
 
 

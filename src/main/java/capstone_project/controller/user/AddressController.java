@@ -49,4 +49,11 @@ public class AddressController {
         final var updatedAddress = addressService.updateAddress(id, addressRequest);
         return ResponseEntity.ok(ApiResponse.ok(updatedAddress));
     }
-}
+
+    @GetMapping("/sender/{customerId}")
+    public ResponseEntity<ApiResponse<AddressResponse>> getAddressByCustomerId(
+            @PathVariable UUID customerId) {
+        final var addresses = addressService.getAddressesByCustomerId(customerId);
+        return ResponseEntity.ok(ApiResponse.ok(addresses));
+    }
+    }

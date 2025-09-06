@@ -2,6 +2,7 @@
 package capstone_project.service.services.user.impl;
 
 import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.user.AddressRequest;
 import capstone_project.dtos.response.user.GeocodingResponse;
@@ -253,6 +254,37 @@ public class AddressServiceImpl implements AddressService {
                     );
                 });
     }
+
+    @Override
+    public AddressResponse getAddressesByCustomerId(UUID customerId) {
+
+        log.info("[AddressServiceImpl][getAddressesByCustomerId] - Attempting to get address for customer ID: {}", customerId);
+
+        // Correct: work directly with Optional
+        AddressEntity address = addressEntityService.findSenderAddressByCustomerId(customerId)
+                .orElseThrow(() -> {
+                    log.error("[AddressServiceImpl][getAddressesByCustomerId] - No sender address found for customer ID: {}", customerId);
+                    return new BadRequestException(
+                            "User not found with id: " + customerId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    );
+                });
+
+        // Double check the address type (should be true for sender)
+        if (!Boolean.TRUE.equals(address.getAddressType())) {
+            log.error("[AddressServiceImpl][getAddressesByCustomerId] - Address found for customer ID: {} but address type is not sender (addressType=false).", customerId);
+            throw new BadRequestException(
+                    ErrorEnum.INVALID_SENDER.getMessage(),
+                    ErrorEnum.INVALID_SENDER.getErrorCode()
+            );
+        }
+
+        log.info("[AddressServiceImpl][getAddressesByCustomerId] - Successfully retrieved sender address for customer ID: {}", customerId);
+        return safeMapToResponse(address);
+
+
+    }
+
 
     /**
      * Safely map AddressEntity to AddressResponse, handling null customer relationships
