@@ -5,6 +5,7 @@ import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.CreateOrderResponse;
+import capstone_project.dtos.response.order.GetOrderResponse;
 import capstone_project.service.services.order.order.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -77,5 +78,20 @@ public class OrderController {
         final var result = orderService.getAllOrders();
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @GetMapping("/get-orders-for-cus-by-user-id/{userId}")
+    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrdersForCusByUserId(@PathVariable UUID userId
+    ) {
+        final var result = orderService.getOrdersForCusByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/get-by-id/{orderId}")
+    public ResponseEntity<ApiResponse<GetOrderResponse>> getOrderById(@PathVariable UUID orderId
+    ) {
+        final var result = orderService.getOrderById(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
 
 }

@@ -10,6 +10,7 @@ import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
+import capstone_project.dtos.response.order.GetOrderResponse;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
@@ -335,9 +336,9 @@ public class OrderServiceImpl implements OrderService {
                             .orElseThrow(() -> new NotFoundException(
                                     ErrorEnum.NOT_FOUND.getMessage() + " orderSize with id: " + request.orderSizeId(),
                                     ErrorEnum.NOT_FOUND.getErrorCode()));
-                    if(orderSizeEntity.getMaxWeight().compareTo(request.weight()) < 0){
-                        throw new BadRequestException(ErrorEnum.INVALID_REQUEST.getMessage() + "orderSize's max weight have to be more than detail's weight", ErrorEnum.NOT_FOUND.getErrorCode());
-                    }
+//                    if(orderSizeEntity.getMaxWeight().compareTo(request.weight()) < 0){
+//                        throw new BadRequestException(ErrorEnum.INVALID_REQUEST.getMessage() + "orderSize's max weight have to be more than detail's weight", ErrorEnum.NOT_FOUND.getErrorCode());
+//                    }
                     return OrderDetailEntity.builder()
                             .weight(request.weight())
                             .description(request.description())
@@ -355,6 +356,27 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public List<CreateOrderResponse> getAllOrders() {
         return orderMapper.toCreateOrderResponses(orderEntityService.findAll());
+    }
+
+    @Override
+    public List<CreateOrderResponse> getOrdersForCusByUserId(UUID userId) {
+        log.info("getOrdersForCusByUserId: start");
+        CustomerEntity customer = customerEntityService.findByUserId(userId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + ", Customer not found with user id: " + userId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()));
+        List<OrderEntity> orderEntities = orderEntityService.findBySenderId(customer.getId());
+        return orderMapper.toCreateOrderResponses(orderEntities);
+    }
+
+    @Override
+    public GetOrderResponse getOrderById(UUID orderId) {
+        Optional<OrderEntity> order = orderEntityService.findEntityById(orderId);
+        if(!order.isPresent()){
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "Not found order with id: "+orderId, ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        return orderMapper.toGetOrderResponse(order.get());
     }
 
 

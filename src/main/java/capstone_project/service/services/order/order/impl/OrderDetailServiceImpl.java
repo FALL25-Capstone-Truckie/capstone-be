@@ -10,6 +10,7 @@ import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
+import capstone_project.dtos.response.order.GetOrderDetailsResponseForList;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.entity.order.contract.ContractEntity;
@@ -190,7 +191,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     }
 
     @Override
-    public List<GetOrderDetailResponse> getOrderDetailByOrderIdResponseList(UUID orderId) {
+    public List<GetOrderDetailsResponseForList> getOrderDetailByOrderIdResponseList(UUID orderId) {
         log.info("Fetching order details for order ID: {}", orderId);
 
         if(orderEntityService.findEntityById(orderId).isPresent()){
@@ -209,7 +210,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
             );
         }
 
-        return orderDetailMapper.toGetOrderDetailResponseList(details);
+        return orderDetailMapper.toGetOrderDetailResponseListBasic(details);
     }
 
     @Override
@@ -333,7 +334,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
     @Override
     @Transactional
-    public List<GetOrderDetailResponse> updateVehicleAssigmentForEachOrderDetails(UUID orderId) {
+    public List<GetOrderDetailsResponseForList> updateVehicleAssigmentForEachOrderDetails(UUID orderId) {
         log.info("Updating vehicle assignment for order ID: {}", orderId);
 
         //Lấy list assign phan bo tung detail cho moi vehicle rule
@@ -402,14 +403,14 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         }
 
         // 6. Return kết quả cuối cùng
-        return orderDetailMapper.toGetOrderDetailResponseList(
+        return orderDetailMapper.toGetOrderDetailResponseListBasic(
                 orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId)
         );
     }
 
 
     @Override
-    public List<GetOrderDetailResponse> getAllOrderDetails() {
-        return orderDetailMapper.toGetOrderDetailResponseList(orderDetailEntityService.findAll());
+    public List<GetOrderDetailsResponseForList> getAllOrderDetails() {
+        return orderDetailMapper.toGetOrderDetailResponseListBasic(orderDetailEntityService.findAll());
     }
 }

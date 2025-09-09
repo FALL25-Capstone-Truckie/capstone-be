@@ -1,13 +1,11 @@
 package capstone_project.dtos.response.order;
 
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
-import capstone_project.entity.order.order.OrderSizeEntity;
-import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public record GetOrderDetailResponse  (
+public record GetOrderDetailsResponseForList(
         BigDecimal weight,
         String description,
         String status,
@@ -19,8 +17,7 @@ public record GetOrderDetailResponse  (
         LocalDateTime updatedAt,
         String trackingCode,
         String orderId,
-        GetOrderSizeResponse orderSizeId,
-        VehicleAssignmentResponse vehicleAssignmentId
-)
-{
+        String orderSizeId,
+        String vehicleAssignmentId
+) {
 }

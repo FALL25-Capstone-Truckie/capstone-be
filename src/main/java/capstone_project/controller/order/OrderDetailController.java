@@ -6,6 +6,7 @@ import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
+import capstone_project.dtos.response.order.GetOrderDetailsResponseForList;
 import capstone_project.service.services.order.order.OrderDetailService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +53,7 @@ public class OrderDetailController {
 
     // Lấy tất cả orderDetail theo orderId
     @GetMapping("/order/{orderId}")
-    public ResponseEntity<ApiResponse<List<GetOrderDetailResponse>>> getOrderDetailByOrderIdResponseList(
+    public ResponseEntity<ApiResponse<List<GetOrderDetailsResponseForList>>> getOrderDetailByOrderIdResponseList(
             @PathVariable UUID orderId) {
         final var result = orderDetailService.getOrderDetailByOrderIdResponseList(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
@@ -75,14 +76,14 @@ public class OrderDetailController {
     }
 
     @GetMapping("/get-all")
-    public ResponseEntity<ApiResponse<List<GetOrderDetailResponse>>> getAllOrderDetails(
+    public ResponseEntity<ApiResponse<List<GetOrderDetailsResponseForList>>> getAllOrderDetails(
     ) {
         final var result = orderDetailService.getAllOrderDetails();
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PutMapping("update-vehicle-assignment-for-details")
-    public ResponseEntity<ApiResponse<List<GetOrderDetailResponse>>> updateVehicleAssignmentForDetailsIfContractExisted(
+    public ResponseEntity<ApiResponse<List<GetOrderDetailsResponseForList>>> updateVehicleAssignmentForDetailsIfContractExisted(
             @Valid @RequestParam UUID orderId) {
         final var result = orderDetailService.updateVehicleAssigmentForEachOrderDetails(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));

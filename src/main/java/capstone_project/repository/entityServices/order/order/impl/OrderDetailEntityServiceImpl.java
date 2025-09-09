@@ -4,6 +4,7 @@ import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.repository.repositories.order.order.OrderDetailRepository;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,12 +30,12 @@ public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
 
     @Override
     public List<OrderDetailEntity> findAll() {
-        return orderDetailRepository.findAll();
+        return orderDetailRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
     @Override
     public List<OrderDetailEntity> findOrderDetailEntitiesByOrderEntityId(UUID orderDetailEntityId) {
-        return orderDetailRepository.findOrderDetailEntitiesByOrderEntityId(orderDetailEntityId);
+        return orderDetailRepository.findOrderDetailEntitiesByOrderEntityIdOrderByCreatedAtDesc(orderDetailEntityId);
     }
 
     @Override

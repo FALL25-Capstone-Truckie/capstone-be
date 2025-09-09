@@ -7,5 +7,5 @@ import java.util.List;
 import java.util.UUID;
 
 public interface OrderDetailRepository extends BaseRepository<OrderDetailEntity> {
-    List<OrderDetailEntity> findOrderDetailEntitiesByOrderEntityId(UUID orderId);
+    List<OrderDetailEntity> findOrderDetailEntitiesByOrderEntityIdOrderByCreatedAtDesc(UUID orderId);
 }

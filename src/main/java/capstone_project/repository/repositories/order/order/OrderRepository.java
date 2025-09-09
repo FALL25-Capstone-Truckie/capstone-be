@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface OrderRepository extends BaseRepository<OrderEntity> {
     // Additional methods specific to OrderRepository can be defined here
-    List<OrderEntity> findBySenderId(UUID senderId);
+    List<OrderEntity> findBySenderIdOrderByCreatedAtDesc(UUID senderId);
 
     List<OrderEntity> findByDeliveryAddressId(UUID deliveryAddressId);
 

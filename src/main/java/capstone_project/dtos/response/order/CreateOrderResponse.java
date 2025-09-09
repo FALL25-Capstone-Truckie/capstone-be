@@ -21,7 +21,6 @@ public record CreateOrderResponse(
         String senderId,
         String deliveryId,
         String pickupAddressId,
-        String categoryId,
-        List<GetOrderDetailResponse> orderDetails
+        String categoryId
 ) {
 }

@@ -34,4 +34,9 @@ public interface OrderService {
             List<CreateOrderDetailRequest> requests, OrderEntity savedOrder, LocalDateTime estimateStartTime);
 
     List<CreateOrderResponse> getAllOrders();
+
+    List<CreateOrderResponse> getOrdersForCusByUserId(UUID userId);
+
+    GetOrderResponse getOrderById(UUID orderId);
+
 }

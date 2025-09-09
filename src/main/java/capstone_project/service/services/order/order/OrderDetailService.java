@@ -5,6 +5,7 @@ import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
+import capstone_project.dtos.response.order.GetOrderDetailsResponseForList;
 
 import java.util.List;
 import java.util.UUID;
@@ -16,7 +17,7 @@ public interface OrderDetailService {
 
     CreateOrderResponse createOrderDetailByOrderId(UUID orderId, List<CreateOrderDetailRequest> createOrderDetailRequest);
 
-    List<GetOrderDetailResponse> getOrderDetailByOrderIdResponseList(UUID orderId);
+    List<GetOrderDetailsResponseForList> getOrderDetailByOrderIdResponseList(UUID orderId);
 
     GetOrderDetailResponse getOrderDetailById(UUID orderDetailId);
 
@@ -24,7 +25,7 @@ public interface OrderDetailService {
 
     boolean changeStatusOrderDetailOnlyForAdmin(UUID orderId, UUID orderDetailId, OrderStatusEnum status);
 
-    List<GetOrderDetailResponse> updateVehicleAssigmentForEachOrderDetails(UUID orderId);
+    List<GetOrderDetailsResponseForList> updateVehicleAssigmentForEachOrderDetails(UUID orderId);
 
-    List<GetOrderDetailResponse> getAllOrderDetails();
+    List<GetOrderDetailsResponseForList> getAllOrderDetails();
 }
