@@ -1,6 +1,7 @@
 package capstone_project.service.services.auth.impl;
 
 import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.enums.LicenseClassEnum;
 import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
@@ -186,16 +187,20 @@ public class RegisterServiceImpl implements RegisterService {
     public DriverResponse registerDriver(RegisterDriverRequest registerDriverRequest) {
         log.info("[register] Start function");
 
+        if (registerDriverRequest == null) {
+            log.error("[registerDriver] RegisterDriverRequest is null");
+            throw new BadRequestException(ErrorEnum.INVALID.getMessage(), ErrorEnum.INVALID.getErrorCode());
+        }
+
         final String username = registerDriverRequest.getUsername();
         final String email = registerDriverRequest.getEmail();
 
-        userEntityService.getUserByUserNameOrEmail(username, email).ifPresent(user -> {
-            log.info("[register] Username or Email existed");
-            throw new BadRequestException(
-                    ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getMessage(),
-                    ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getErrorCode()
-            );
-        });
+        userEntityService.getUserByUserNameOrEmail(username, email)
+                .ifPresent(user -> {
+                    log.info("[register] Username or Email existed");
+                    throw new BadRequestException(ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getMessage(),
+                            ErrorEnum.USER_NAME_OR_EMAIL_EXISTED.getErrorCode());
+                });
 
         RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.DRIVER.name())
                 .orElseThrow(() -> new BadRequestException(
@@ -203,7 +208,12 @@ public class RegisterServiceImpl implements RegisterService {
                         ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
                 ));
 
-        LocalDateTime validatedDob = validateDateFormat(registerDriverRequest.getDateOfBirth());
+        LocalDateTime dob = validateDateFormat(registerDriverRequest.getDateOfBirth());
+        LocalDateTime dateOfIssue = validateDateFormat(registerDriverRequest.getDateOfIssue());
+        LocalDateTime dateOfExpiry = validateDateFormat(registerDriverRequest.getDateOfExpiry());
+        LocalDateTime dateOfPassing = validateDateFormat(registerDriverRequest.getDateOfPassing());
+
+        validateDriverBusinessRules(dob, dateOfIssue, dateOfExpiry, dateOfPassing, registerDriverRequest.getLicenseClass());
 
         UserEntity user = UserEntity.builder()
                 .username(username)
@@ -213,7 +223,7 @@ public class RegisterServiceImpl implements RegisterService {
                 .phoneNumber(registerDriverRequest.getPhoneNumber())
                 .gender(registerDriverRequest.getGender())
                 .imageUrl(registerDriverRequest.getImageUrl())
-                .dateOfBirth(validatedDob.toLocalDate())
+                .dateOfBirth(dob.toLocalDate())
                 .status(UserStatusEnum.ACTIVE.name())
                 .role(role)
                 .createdAt(LocalDateTime.now())
@@ -226,18 +236,55 @@ public class RegisterServiceImpl implements RegisterService {
                 .identityNumber(registerDriverRequest.getIdentityNumber())
                 .cardSerialNumber(registerDriverRequest.getCardSerialNumber())
                 .placeOfIssue(registerDriverRequest.getPlaceOfIssue())
-                .dateOfIssue(validateDateFormat(registerDriverRequest.getDateOfIssue()))
-                .dateOfExpiry(validateDateFormat(registerDriverRequest.getDateOfExpiry()))
+                .dateOfIssue(dateOfIssue)
+                .dateOfExpiry(dateOfExpiry)
                 .licenseClass(registerDriverRequest.getLicenseClass())
-                .dateOfPassing(validateDateFormat(registerDriverRequest.getDateOfPassing()))
+                .dateOfPassing(dateOfPassing)
                 .createdAt(LocalDateTime.now())
                 .status(UserStatusEnum.ACTIVE.name())
                 .user(savedUser)
                 .build();
 
         DriverEntity savedDriver = driverEntityService.save(driverEntity);
-
         return driverMapper.mapDriverResponse(savedDriver);
+    }
+
+    private void validateDriverBusinessRules(LocalDateTime dob, LocalDateTime dateOfIssue,
+                                             LocalDateTime dateOfExpiry, LocalDateTime dateOfPassing,
+                                             String licenseClassStr) {
+
+        if (dateOfIssue.isAfter(LocalDateTime.now())) {
+            throw new BadRequestException("Date of issue cannot be in the future", ErrorEnum.INVALID.getErrorCode());
+        }
+        if (dateOfPassing.isAfter(dateOfIssue)) {
+            throw new BadRequestException("Date of passing cannot be after date of issue", ErrorEnum.INVALID.getErrorCode());
+        }
+        if (dateOfExpiry.isBefore(dateOfIssue)) {
+            throw new BadRequestException("Date of expiry cannot be before date of issue", ErrorEnum.INVALID.getErrorCode());
+        }
+        if (dateOfExpiry.isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Driver license has expired", ErrorEnum.INVALID.getErrorCode());
+        }
+
+        LicenseClassEnum licenseClass;
+        try {
+            licenseClass = LicenseClassEnum.valueOf(licenseClassStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Invalid license class. Allowed values: B2, C",
+                    ErrorEnum.INVALID.getErrorCode());
+        }
+
+        int ageAtPassing = dob.toLocalDate().until(dateOfPassing.toLocalDate()).getYears();
+        switch (licenseClass) {
+            case B2 -> {
+                if (ageAtPassing < 18)
+                    throw new BadRequestException("B2 license requires minimum age of 18", ErrorEnum.INVALID.getErrorCode());
+            }
+            case C -> {
+                if (ageAtPassing < 21)
+                    throw new BadRequestException("C license requires minimum age of 21", ErrorEnum.INVALID.getErrorCode());
+            }
+        }
     }
 
     @Override
@@ -326,33 +373,33 @@ public class RegisterServiceImpl implements RegisterService {
             return handlerLoginWithGoogleLogic(new LoginWithGoogleRequest(existingUser.getEmail()));
         }
 
-            RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.CUSTOMER.name())
-                    .orElseThrow(() -> new BadRequestException(
-                            "Role CUSTOMER not found",
-                            ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
-                    ));
+        RoleEntity role = roleEntityService.findByRoleName(RoleTypeEnum.CUSTOMER.name())
+                .orElseThrow(() -> new BadRequestException(
+                        "Role CUSTOMER not found",
+                        ErrorEnum.ROLE_NOT_FOUND.getErrorCode()
+                ));
 
-            LocalDateTime validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
+        LocalDateTime validatedDob = validateDateFormat(registerUserRequest.getDateOfBirth());
 
-            UserEntity user = UserEntity.builder()
-                    .username(username)
-                    .email(email)
-                    .password(NO_PASSWORD)
-                    .fullName(registerUserRequest.getFullName())
-                    .phoneNumber(registerUserRequest.getPhoneNumber())
-                    .gender(registerUserRequest.getGender())
-                    .imageUrl(registerUserRequest.getImageUrl())
-                    .dateOfBirth(validatedDob.toLocalDate())
-                    .status(UserStatusEnum.ACTIVE.name())
-                    .role(role)
-                    .createdAt(LocalDateTime.now())
-                    .build();
+        UserEntity user = UserEntity.builder()
+                .username(username)
+                .email(email)
+                .password(NO_PASSWORD)
+                .fullName(registerUserRequest.getFullName())
+                .phoneNumber(registerUserRequest.getPhoneNumber())
+                .gender(registerUserRequest.getGender())
+                .imageUrl(registerUserRequest.getImageUrl())
+                .dateOfBirth(validatedDob.toLocalDate())
+                .status(UserStatusEnum.ACTIVE.name())
+                .role(role)
+                .createdAt(LocalDateTime.now())
+                .build();
 
-            userEntityService.save(user);
+        userEntityService.save(user);
 
-            log.info("[loginWithGoogle] Create new account & Login successful");
+        log.info("[loginWithGoogle] Create new account & Login successful");
 
-            return handlerLoginWithGoogleLogic(new LoginWithGoogleRequest(registerUserRequest.getEmail()));
+        return handlerLoginWithGoogleLogic(new LoginWithGoogleRequest(registerUserRequest.getEmail()));
     }
 
     private LoginResponse handlerLoginWithGoogleLogic(LoginWithGoogleRequest loginWithGoogleRequest) {
