@@ -4,6 +4,7 @@ import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.repositories.vehicle.VehicleRepository;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,6 +23,7 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
     }
 
     @Override
+    @EntityGraph(attributePaths = {"vehicleType", "vehicleAssignment", "vehicleMaintenance"})
     public Optional<VehicleEntity> findEntityById(UUID uuid) {
         return vehicleRepository.findById(uuid);
     }
@@ -40,4 +42,10 @@ public class VehicleEntityServiceImpl implements VehicleEntityService {
     public Optional<VehicleEntity> findByVehicleId(UUID vehicleId) {
         return vehicleRepository.findById(vehicleId);
     }
+
+    @Override
+    public Optional<VehicleEntity>  findVehicleDetailsById(UUID id) {
+        return vehicleRepository.findVehicleWithJoinsById(id);
+    }
+
 }

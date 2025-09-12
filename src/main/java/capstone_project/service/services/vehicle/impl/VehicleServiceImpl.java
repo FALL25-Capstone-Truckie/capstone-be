@@ -5,12 +5,24 @@ import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.UpdateVehicleRequest;
 import capstone_project.dtos.request.vehicle.VehicleRequest;
+import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
+import capstone_project.dtos.response.vehicle.VehicleGetDetailsResponse;
+import capstone_project.dtos.response.vehicle.VehicleMaintenanceResponse;
 import capstone_project.dtos.response.vehicle.VehicleResponse;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
+import capstone_project.entity.vehicle.VehicleMaintenanceEntity;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleMaintenanceEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
+import capstone_project.service.mapper.vehicle.VehicleMaintenanceMapper;
 import capstone_project.service.mapper.vehicle.VehicleMapper;
-import capstone_project.service.services.service.RedisService;
+import capstone_project.service.services.vehicle.VehicleAssignmentService;
+import capstone_project.service.services.vehicle.VehicleMaintenanceService;
 import capstone_project.service.services.vehicle.VehicleService;
+import capstone_project.service.services.vehicle.VehicleTypeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,51 +38,30 @@ import java.util.UUID;
 public class VehicleServiceImpl implements VehicleService {
 
     private final VehicleEntityService vehicleEntityService;
+    private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
+    private final VehicleMaintenanceEntityService vehicleMaintenanceEntityService;
+    private final VehicleTypeEntityService vehicleTypeEntityService;
     private final VehicleMapper vehicleMapper;
-    private final RedisService redisService;
-
-    private static final String VEHICLE_ALL_CACHE_KEY = "vehicles:all";
-    private static final String VEHICLE_BY_ID_CACHE_KEY_PREFIX = "vehicle:";
+    private final VehicleAssignmentMapper vehicleAssignmentMapper;
+    private final VehicleMaintenanceMapper vehicleMaintenanceMapper;
 
     @Override
     public List<VehicleResponse> getAllVehicles() {
         log.info("Fetching all vehicles");
 
-        List<VehicleResponse> cachedResponses = redisService.getList(
-                VEHICLE_ALL_CACHE_KEY, VehicleResponse.class
-        );
-
-        if (cachedResponses != null) {
-            log.info("Returning cached vehicles");
-            return cachedResponses;
-        }
-
-        log.info("No cached vehicles found, fetching from database");
         List<VehicleEntity> entities = vehicleEntityService.findAll();
         if (entities.isEmpty()) {
-            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
-        List<VehicleResponse> responses = entities.stream()
+        return entities.stream()
                 .map(vehicleMapper::toVehicleResponse)
                 .toList();
-
-        redisService.save(VEHICLE_ALL_CACHE_KEY, responses);
-
-        return responses;
     }
 
-
     @Override
-    public VehicleResponse getVehicleById(UUID id) {
-        String cacheKey = VEHICLE_BY_ID_CACHE_KEY_PREFIX + id;
-
-        VehicleResponse cachedResponse = redisService.get(cacheKey, VehicleResponse.class);
-        if (cachedResponse != null) {
-            log.info("Returning cached vehicle with ID: {}", id);
-            return cachedResponse;
-        }
-
+    public VehicleGetDetailsResponse getVehicleById(UUID id) {
         VehicleEntity entity = vehicleEntityService.findEntityById(id)
                 .orElseThrow(() -> {
                     log.warn("Vehicle with ID {} not found", id);
@@ -80,9 +71,27 @@ public class VehicleServiceImpl implements VehicleService {
                     );
                 });
 
-        VehicleResponse response = vehicleMapper.toVehicleResponse(entity);
+        List<VehicleAssignmentEntity> vha =
+                vehicleAssignmentEntityService.findByVehicleEntityId(entity.getId());
 
-        redisService.save(cacheKey, response);
+        // map vehicle entity first
+        VehicleGetDetailsResponse response = vehicleMapper.toVehicleDetailResponse(entity);
+
+        // map assignments and attach to response
+        List<VehicleAssignmentResponse> assignmentResponses = vha.stream()
+                .map(vehicleAssignmentMapper::toResponse)
+                .toList();
+
+        response.setVehicleAssignmentResponse(assignmentResponses);
+
+        List<VehicleMaintenanceEntity> vhm  =
+                vehicleMaintenanceEntityService.findByVehicleEntityId(entity.getId());
+
+        List<VehicleMaintenanceResponse> maintenanceResponses = vhm.stream()
+                .map(vehicleMaintenanceMapper::toResponse)
+                .toList();
+
+        response.setVehicleMaintenanceResponse(maintenanceResponses);
 
         return response;
     }
@@ -94,8 +103,6 @@ public class VehicleServiceImpl implements VehicleService {
 
         VehicleEntity vehicleEntity = vehicleMapper.toVehicleEntity(request);
         VehicleEntity savedVehicle = vehicleEntityService.save(vehicleEntity);
-
-        redisService.delete(VEHICLE_ALL_CACHE_KEY);
 
         return vehicleMapper.toVehicleResponse(savedVehicle);
     }
@@ -122,7 +129,6 @@ public class VehicleServiceImpl implements VehicleService {
                     });
         }
 
-
         vehicleMapper.toVehicleEntity(request, existingVehicle);
 
         if (request.currentLatitude() != null || request.currentLongitude() != null) {
@@ -130,9 +136,6 @@ public class VehicleServiceImpl implements VehicleService {
         }
 
         VehicleEntity updatedVehicle = vehicleEntityService.save(existingVehicle);
-
-        redisService.delete(VEHICLE_ALL_CACHE_KEY);
-        redisService.save(VEHICLE_BY_ID_CACHE_KEY_PREFIX + id, updatedVehicle);
 
         return vehicleMapper.toVehicleResponse(updatedVehicle);
     }

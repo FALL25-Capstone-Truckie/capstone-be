@@ -32,4 +32,9 @@ public class VehicleMaintenanceEntityServiceImpl implements VehicleMaintenanceEn
     public List<VehicleMaintenanceEntity> findAll() {
         return vehicleMaintenanceRepository.findAll();
     }
+
+    @Override
+    public List<VehicleMaintenanceEntity> findByVehicleEntityId(UUID vehicleId) {
+        return vehicleMaintenanceRepository.findByVehicleEntityId(vehicleId);
+    }
 }

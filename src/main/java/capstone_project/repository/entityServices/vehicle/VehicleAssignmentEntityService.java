@@ -8,4 +8,6 @@ import java.util.UUID;
 
 public interface VehicleAssignmentEntityService extends BaseEntityService<VehicleAssignmentEntity, UUID> {
     List<VehicleAssignmentEntity> findByStatus(String status);
+
+    List<VehicleAssignmentEntity> findByVehicleEntityId(UUID vehicleID);
 }

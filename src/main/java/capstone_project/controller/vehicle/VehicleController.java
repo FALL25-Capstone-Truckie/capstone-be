@@ -2,6 +2,7 @@ package capstone_project.controller.vehicle;
 
 import capstone_project.dtos.request.vehicle.UpdateVehicleRequest;
 import capstone_project.dtos.request.vehicle.VehicleRequest;
+import capstone_project.dtos.response.vehicle.VehicleGetDetailsResponse;
 import capstone_project.dtos.response.vehicle.VehicleResponse;
 import capstone_project.service.services.vehicle.VehicleService;
 import capstone_project.dtos.response.common.ApiResponse;
@@ -27,7 +28,7 @@ public class VehicleController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<VehicleResponse>> getById(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<VehicleGetDetailsResponse>> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(service.getVehicleById(id)));
     }
 

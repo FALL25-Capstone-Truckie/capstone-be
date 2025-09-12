@@ -35,4 +35,11 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
     public List<VehicleAssignmentEntity> findByStatus(String status) {
         return vehicleAssignmentRepository.findByStatus(status);
     }
+
+    @Override
+    public List<VehicleAssignmentEntity> findByVehicleEntityId(UUID vehicleID) {
+        return vehicleAssignmentRepository.findByVehicleEntityId(vehicleID);
+    }
+
+
 }
