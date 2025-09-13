@@ -11,6 +11,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.Map;
 
 @Service
@@ -40,5 +42,15 @@ public class CloudinaryServiceImpl implements CloudinaryService {
     @Override
     public String getFileUrl(String publicId) {
         return cloudinary.url().secure(true).generate(publicId);
+    }
+
+    @Override
+    public byte[] downloadFile(String fileUrl) throws IOException {
+        try (InputStream in = new URL(fileUrl).openStream()) {
+            return in.readAllBytes();
+        } catch (Exception e) {
+            log.error("Error downloading file from Cloudinary: {}", e.getMessage(), e);
+            throw new IOException("Failed to download file from Cloudinary", e);
+        }
     }
 }

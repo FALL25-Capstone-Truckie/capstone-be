@@ -1,6 +1,8 @@
 package capstone_project.repository.entityServices.order.conformation.impl;
 
+import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.conformation.SignatureRequestEntity;
+import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.repository.repositories.order.conformation.SignatureRequestRepository;
 import capstone_project.repository.entityServices.order.conformation.SignatureRequestEntityService;
 import lombok.RequiredArgsConstructor;
@@ -29,5 +31,15 @@ public class SignatureRequestEntityServiceImpl implements SignatureRequestEntity
     @Override
     public List<SignatureRequestEntity> findAll() {
         return signatureRequestRepository.findAll();
+    }
+
+    @Override
+    public SignatureRequestEntity findByOrderEntity(OrderEntity orderId) {
+        return signatureRequestRepository.findByOrderEntity(orderId);
+    }
+
+    @Override
+    public List<SignatureRequestEntity> findByUser(UserEntity userId) {
+        return signatureRequestRepository.findByUser(userId);
     }
 }

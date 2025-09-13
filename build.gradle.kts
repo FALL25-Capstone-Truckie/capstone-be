@@ -18,12 +18,17 @@ java {
 
 repositories {
 	mavenCentral()
+	maven {
+		url = uri("https://repo.itextsupport.com/releases")
+	}
 }
 
 allprojects {
 	ext {
 		set("lombokVersion", "1.18.26")
 		set("mapstructVersion", "1.5.5.Final")
+		set("itextVersion", "7.2.3")
+		set("bouncyCastleVersion", "1.70")
 	}
 }
 
@@ -108,6 +113,24 @@ dependencies {
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-hibernate6:2.17.0")
+
+	// PDF - iText 5 (legacy - cho compatibility)
+	implementation("com.itextpdf:itextpdf:5.5.13.4")
+
+	// iText 7 - ĐÚNG CÁCH
+	// Thay vì itext7-core và itext7-sign, sử dụng các module riêng lẻ:
+	implementation("com.itextpdf:kernel:${rootProject.ext.get("itextVersion")}")
+	implementation("com.itextpdf:io:${rootProject.ext.get("itextVersion")}")
+	implementation("com.itextpdf:layout:${rootProject.ext.get("itextVersion")}")
+	implementation("com.itextpdf:forms:${rootProject.ext.get("itextVersion")}")
+	implementation("com.itextpdf:pdfa:${rootProject.ext.get("itextVersion")}")
+	implementation("com.itextpdf:sign:${rootProject.ext.get("itextVersion")}")
+
+	// ✅ BOUNCY CASTLE TRƯỚC - ĐỂ TRÁNH CONFLICT
+	implementation("org.bouncycastle:bcprov-jdk15on:${rootProject.ext.get("bouncyCastleVersion")}")
+	implementation("org.bouncycastle:bcpkix-jdk15on:${rootProject.ext.get("bouncyCastleVersion")}")
+	implementation("org.bouncycastle:bcutil-jdk15on:${rootProject.ext.get("bouncyCastleVersion")}")
+
 }
 
 

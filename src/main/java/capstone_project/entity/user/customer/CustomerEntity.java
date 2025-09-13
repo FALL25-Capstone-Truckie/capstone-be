@@ -36,6 +36,11 @@ public class CustomerEntity extends BaseEntity {
     @Column(name = "status")
     private String status;
 
+    @Lob
+    @Column(name = "public_certificate")
+    private byte[] publicCertificate;
+
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonBackReference
