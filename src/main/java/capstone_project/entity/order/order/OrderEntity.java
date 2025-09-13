@@ -9,6 +9,8 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "orders", schema = "public", catalog = "capstone-project")
@@ -18,7 +20,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class OrderEntity extends BaseEntity {
     @Column(name = "total_price")
-    private Double totalPrice;
+    private BigDecimal totalPrice;
 
     @Size(max = 100)
     @Column(name = "notes", length = 100)
@@ -52,7 +54,7 @@ public class OrderEntity extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "delivery_address_id")
-    private AddressEntity deliveryAddress;
+        private AddressEntity deliveryAddress;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pickup_address_id")
@@ -61,4 +63,14 @@ public class OrderEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     private CustomerEntity sender;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private CategoryEntity category;
+
+    @OneToMany(mappedBy = "orderEntity", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private List<OrderDetailEntity> orderDetailEntities = new ArrayList<>();
+
 }

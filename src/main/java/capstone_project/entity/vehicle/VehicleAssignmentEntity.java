@@ -1,11 +1,12 @@
 package capstone_project.entity.vehicle;
 
 import capstone_project.entity.common.BaseEntity;
-import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 @Entity
@@ -28,11 +29,11 @@ public class VehicleAssignmentEntity extends BaseEntity {
     private VehicleEntity vehicleEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "driver_id")
-    private DriverEntity driver;
+    @JoinColumn(name = "driver_id_1")
+    private DriverEntity driver1;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_detail_id")
-    private OrderDetailEntity orderDetail;
+    @JoinColumn(name = "driver_id_2")
+    private DriverEntity driver2;
 
 }

@@ -6,7 +6,7 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.VehicleTypeRequest;
 import capstone_project.dtos.response.vehicle.VehicleTypeResponse;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
-import capstone_project.service.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.vehicle.VehicleTypeMapper;
 import capstone_project.service.services.redis.impl.RedisServiceImpl;
 import capstone_project.service.services.vehicle.VehicleTypeService;
@@ -33,6 +33,8 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
 
     @Override
     public List<VehicleTypeResponse> getAllVehicleTypes() {
+        log.info("Fetching all vehicle types");
+
         List<VehicleTypeEntity> cachedEntities = redisService.getList(
                 VEHICLE_TYPE_ALL_CACHE_KEY, VehicleTypeEntity.class
         );
@@ -40,8 +42,10 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
         List<VehicleTypeEntity> entities;
 
         if (cachedEntities != null) {
+            log.info("Returning cached vehicle types");
             entities = cachedEntities;
         } else {
+            log.info("No cached vehicle types found, fetching from database");
             entities = vehicleTypeEntityService.findAll();
             if (entities.isEmpty()) {
                 throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode());
@@ -64,7 +68,7 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
             return vehicleTypeMapper.toVehicleTypeResponse(cachedEntity);
         }
 
-        VehicleTypeEntity entity = vehicleTypeEntityService.findById(id)
+        VehicleTypeEntity entity = vehicleTypeEntityService.findEntityById(id)
                 .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(), ErrorEnum.NOT_FOUND.getErrorCode()));
 
         redisService.save(cacheKey, entity);
@@ -97,7 +101,7 @@ public class VehicleTypeServiceImpl implements VehicleTypeService {
     public VehicleTypeResponse updateVehicleType(UUID id, VehicleTypeRequest vehicleTypeRequest) {
         log.info("Updating vehicle type with ID: {}", id);
 
-        VehicleTypeEntity existingVehicleType = vehicleTypeEntityService.findById(id)
+        VehicleTypeEntity existingVehicleType = vehicleTypeEntityService.findEntityById(id)
                 .orElseThrow(() -> {
                     log.warn("Vehicle type with ID {} not found", id);
                     return new NotFoundException(

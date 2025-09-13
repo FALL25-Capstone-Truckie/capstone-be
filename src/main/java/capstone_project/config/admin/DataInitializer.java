@@ -1,10 +1,11 @@
 package capstone_project.config.admin;
 
+import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.entity.auth.RoleEntity;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.common.enums.RoleTypeEnum;
-import capstone_project.service.entityServices.auth.RoleEntityService;
-import capstone_project.service.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.auth.RoleEntityService;
+import capstone_project.repository.entityServices.auth.UserEntityService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -46,7 +47,7 @@ public class DataInitializer {
                     .password(passwordEncoder.encode(password))
                     .email(email)
                     .fullName("Administrator")
-                    .status("active")
+                    .status(CommonStatusEnum.ACTIVE.name())
                     .dateOfBirth(LocalDate.of(2000, 1, 1))
                     .createdAt(LocalDateTime.now())
                     .role(adminRole)

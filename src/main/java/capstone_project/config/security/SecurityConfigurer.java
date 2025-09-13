@@ -1,6 +1,7 @@
 package capstone_project.config.security;
 
 
+import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.service.auth.AuthUserService;
 import capstone_project.service.auth.JwtRequestFilter;
 import jakarta.servlet.http.HttpServletResponse;
@@ -45,8 +46,69 @@ public class SecurityConfigurer {
     @Value("${vehicle-type.api.base-path}")
     private String vehicleTypeApiBasePath;
 
-    @Value("room.api.base-path")
-    private String roomApiBasePath;
+    @Value("${category.api.base-path}")
+    private String categoryApiBasePath;
+
+    @Value("${category-pricing-detail.api.base-path}")
+    private String categoryPricingDetailApiBasePath;
+
+    @Value("${vehicle-rule.api.base-path}")
+    private String vehicleRuleApiBasePath;
+
+    @Value("${distance-rule.api.base-path}")
+    private String distanceRuleApiBasePath;
+
+    @Value("${basing-price.api.base-path}")
+    private String basingPriceApiBasePath;
+
+    @Value("${contract.api.base-path}")
+    private String contractApiBasePath;
+
+    @Value("${contract-rule.api.base-path}")
+    private String contractRuleApiBasePath;
+
+
+    @Value("${penalty.api.base-path}")
+    private String penaltyApiBasePath;
+
+    @Value("${order.api.base-path}")
+    private String orderBasePath;
+
+    @Value("${order-detail.api.base-path}")
+    private String orderDetailApiBasePath;
+
+    @Value("${order-size.api.base-path}")
+    private String orderSizeBasePath;
+
+    @Value("${issue-type.api.base-path}")
+    private String issueTypeBasePath;
+
+    @Value("${issue.api.base-path}")
+    private String issueBasePath;
+
+    @Value("${issue-image.api.base-path}")
+    private String issueImageBasePath;
+
+    @Value("${distance.api.base-path}")
+    private String distanceBasePath;
+
+    @Value("${photo-completion.api.base-path}")
+    private String photoCompletionBasePath;
+
+    @Value("${device-type.api.base-path}")
+    private String deviceTypeBasePath;
+
+    @Value("${device.api.base-path}")
+    private String deviceBasePath;
+
+    @Value("${user.api.base-path}")
+    private String userApiBasePath;
+
+    @Value("${customer.api.base-path}")
+    private String customerApiBasePath;
+
+    @Value("${driver.api.base-path}")
+    private String driverApiBasePath;
 
     public static final String[] SWAGGER_ENDPOINTS = {
             "/swagger-ui/**",
@@ -58,8 +120,13 @@ public class SecurityConfigurer {
 
     public static final String[] PUBLIC_ENDPOINTS = Stream.concat(
             Stream.of(
-                    "/api/v1/auth/**",
+                    "/api/v1/auths/**",
+                    "/api/loading/**",
+                    "/api/v1/address/**",
                     "/api/v1/emails/**",
+                    "/api/webhooks/**",
+                    "/api/v1/transactions/callback/**",
+                    "/api/v1/transactions/cancel/**",
                     "/app/**",
                     "/topic/**",
                     "/actuator/**",
@@ -90,12 +157,78 @@ public class SecurityConfigurer {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                        .requestMatchers(HttpMethod.GET, vehicleTypeApiBasePath + "/**").authenticated()
 
-                        .requestMatchers(managerApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(roleApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority("ADMIN")
-                        .requestMatchers(roomApiBasePath+ "/**").hasAnyAuthority("ADMIN", "STAFF")
+                        // ================= USER =================
+                        .requestMatchers(userApiBasePath + "/**").authenticated()
+
+                        // ================= VEHICLE =================
+                        .requestMatchers(HttpMethod.GET, vehicleTypeApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, vehicleRuleApiBasePath + "/**").authenticated()
+                        .requestMatchers(vehicleTypeApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(vehicleRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+
+                        // ================= CATEGORY =================
+                        .requestMatchers(HttpMethod.GET, categoryApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, categoryPricingDetailApiBasePath + "/**").authenticated()
+                        .requestMatchers(categoryApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(categoryPricingDetailApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+
+                        // ================= DISTANCE & BASING PRICE =================
+                        .requestMatchers(HttpMethod.GET, distanceRuleApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, basingPriceApiBasePath + "/**").authenticated()
+                        .requestMatchers(distanceRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(basingPriceApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(distanceBasePath + "/**").hasAnyAuthority("CUSTOMER","DRIVER","ADMIN","STAFF")
+
+                        // ================= CONTRACT =================
+                        .requestMatchers(HttpMethod.GET, contractApiBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, contractRuleApiBasePath + "/**").authenticated()
+                        .requestMatchers(contractApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+
+                        // ================= PENALTY =================
+                        .requestMatchers(HttpMethod.GET, penaltyApiBasePath + "/**").authenticated()
+                        .requestMatchers(penaltyApiBasePath + "/**").hasAuthority("ADMIN")
+
+                        // ================= DEVICE =================
+                        .requestMatchers(HttpMethod.GET, deviceTypeBasePath + "/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, deviceBasePath + "/**").authenticated()
+                        .requestMatchers(deviceTypeBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(deviceBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name())
+
+                        // ================= CUSTOMER =================
+                        .requestMatchers(HttpMethod.GET, customerApiBasePath + "/**").authenticated()
+                        .requestMatchers(customerApiBasePath + "/**")
+                        .hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.CUSTOMER.name())
+
+                        // ================= DRIVER =================
+                        .requestMatchers(HttpMethod.GET, driverApiBasePath + "/**").authenticated()
+                        .requestMatchers(driverApiBasePath + "/**")
+                        .hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.DRIVER.name())
+
+                        // ================= ORDER =================
+                        .requestMatchers(orderDetailApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+                        .requestMatchers(orderBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+                        .requestMatchers(orderSizeBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF")
+
+                        // ================= ISSUE =================
+                        .requestMatchers(issueTypeBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
+                        .requestMatchers(issueBasePath + "/**").hasAnyAuthority("ADMIN","STAFF","DRIVER")
+                        .requestMatchers(issueImageBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+
+                        // ================= PHOTO COMPLETION =================
+                        .requestMatchers(photoCompletionBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+
+                        // ================= MANAGER & ROLE =================
+                        .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(roleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+
+
+
+
+
+
+
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterBefore(jwtRequestFilter(), UsernamePasswordAuthenticationFilter.class)

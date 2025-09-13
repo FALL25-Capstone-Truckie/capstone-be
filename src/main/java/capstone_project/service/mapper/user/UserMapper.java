@@ -1,11 +1,11 @@
 package capstone_project.service.mapper.user;
 
 
+import capstone_project.dtos.request.user.UpdateUserRequest;
 import capstone_project.dtos.response.auth.LoginResponse;
 import capstone_project.dtos.response.auth.UserResponse;
 import capstone_project.entity.auth.UserEntity;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
+import org.mapstruct.*;
 
 
 @Mapper(componentModel = "spring")
@@ -18,6 +18,9 @@ public interface UserMapper {
      */
     UserResponse mapUserResponse(final UserEntity userEntity);
 
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    void toUserEntity(UpdateUserRequest request, @MappingTarget UserEntity entity);
+
     /**
      * Map login response login response.
      *
@@ -29,5 +32,7 @@ public interface UserMapper {
     @Mapping(source = "refreshToken", target = "refreshToken")
     @Mapping(target = "user", expression = "java(mapUserResponse(userEntity))")
     LoginResponse mapLoginResponse(final UserEntity userEntity, final String token, final String refreshToken);
+
+
 
 }

@@ -1,7 +1,10 @@
+import org.gradle.kotlin.dsl.implementation
+
 plugins {
 	java
 	id("org.springframework.boot") version "3.3.13"
 	id("io.spring.dependency-management") version "1.1.7"
+    id("com.microsoft.azure.azurewebapp") version "1.10.0"
 }
 
 group = "capstone-project"
@@ -22,7 +25,6 @@ allprojects {
 		set("lombokVersion", "1.18.26")
 		set("mapstructVersion", "1.5.5.Final")
 	}
-
 }
 
 dependencies {
@@ -44,7 +46,8 @@ dependencies {
 
 	// JWT
 	implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-	runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
 	runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
 	// Micrometer / tracing
@@ -70,12 +73,41 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-cache:3.5.4")
 	implementation("org.apache.commons:commons-pool2:2.12.1")
 
+	// PDF
+	implementation("com.itextpdf:itextpdf:5.5.13.4")
+
+	// Cloudinary
+	implementation("com.cloudinary:cloudinary-http44:1.39.0")
+
 	// Jackson
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")
+
+	// Redis
+	implementation("org.springframework.boot:spring-boot-starter-data-redis:3.5.4")
+	implementation("org.springframework.boot:spring-boot-starter-cache:3.5.4")
+	implementation("org.apache.commons:commons-pool2:2.12.1")
+
+	// Jackson
+	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.19.2")
+
+	// Thymeleaf
+	implementation("org.springframework.boot:spring-boot-starter-thymeleaf:3.5.5")
+	implementation("org.xhtmlrenderer:flying-saucer-pdf:9.13.3")
+
+	// Payos
+	implementation("vn.payos:payos-java:1.0.3")
 
 	// Test
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+
+	implementation("org.springframework.boot:spring-boot-starter-webflux")
+
+
+	developmentOnly("org.springframework.boot:spring-boot-devtools")
+
+	implementation("com.fasterxml.jackson.datatype:jackson-datatype-hibernate6:2.17.0")
 
 	//firebase
 	implementation ("com.google.firebase:firebase-admin:9.3.0")
