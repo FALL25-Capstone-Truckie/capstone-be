@@ -66,7 +66,15 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     }
 
     @Override
-    public List<VehicleAssignmentResponse> getAllAssignmentsWithOrder() {
-        return List.of();
+    public List<VehicleAssignmentResponse> getAllAssignmentsWithOrder(UUID vehicleType){
+        log.info("Fetching vehicle assignment by vehicle type ID: {}", vehicleType);
+        List<VehicleAssignmentEntity> entity = entityService.findVehicleWithOrder(vehicleType);
+        if (entity.isEmpty()) {
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+        return entity.stream()
+                .map(mapper::toResponse)
+                .toList();
     }
 }
