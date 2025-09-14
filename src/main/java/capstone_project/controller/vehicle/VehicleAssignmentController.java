@@ -45,4 +45,13 @@ public class VehicleAssignmentController {
             @RequestBody @Valid UpdateVehicleAssignmentRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(service.updateAssignment(id, req)));
     }
+
+    @GetMapping("/{vehicleTypeId}/get-all-with-order")
+    public ResponseEntity<ApiResponse<List<VehicleAssignmentResponse>>> getByIdWithOrder(
+            @PathVariable UUID vehicleTypeId) {
+
+        List<VehicleAssignmentResponse> response = service.getAllAssignmentsWithOrder(vehicleTypeId);
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
 }
