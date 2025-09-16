@@ -7,6 +7,7 @@ import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record GetOrderResponse(
@@ -18,6 +19,7 @@ public record GetOrderResponse(
     String receiverName,
     String receiverPhone,
     String packageDescription,
+    LocalDateTime createdAt,
     AddressResponse deliveryAddress,
     AddressResponse pickupAddress,
     CustomerResponse sender,
