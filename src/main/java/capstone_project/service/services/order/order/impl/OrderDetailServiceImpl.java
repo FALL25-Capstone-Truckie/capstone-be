@@ -1,9 +1,6 @@
 package capstone_project.service.services.order.order.impl;
 
-import capstone_project.common.enums.CommonStatusEnum;
-import capstone_project.common.enums.ErrorEnum;
-import capstone_project.common.enums.OrderStatusEnum;
-import capstone_project.common.enums.VehicleAssignmentStatusEnum;
+import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
@@ -392,7 +389,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                 toUpdate.add(detail);
             }
             orderDetailEntityService.saveAllOrderDetailEntities(toUpdate);
-            vehicleAssignmentEntity.setStatus(VehicleAssignmentStatusEnum.IN_TRIP.name());
+            vehicleAssignmentEntity.setStatus(CommonStatusEnum.ACTIVE.name());
             vehicleAssignmentEntityService.save(vehicleAssignmentEntity);
         }
 

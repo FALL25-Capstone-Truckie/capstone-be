@@ -84,7 +84,7 @@ public class OrderDetailController {
 
     @PutMapping("update-vehicle-assignment-for-details")
     public ResponseEntity<ApiResponse<List<GetOrderDetailsResponseForList>>> updateVehicleAssignmentForDetailsIfContractExisted(
-            @Valid @RequestParam UUID orderId) {
+            @Valid @PathVariable UUID orderId) {
         final var result = orderDetailService.updateVehicleAssigmentForEachOrderDetails(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }

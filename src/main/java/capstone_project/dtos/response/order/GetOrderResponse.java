@@ -24,6 +24,7 @@ public record GetOrderResponse(
     AddressResponse deliveryAddress,
     AddressResponse pickupAddress,
     CustomerResponse sender,
+    CategoryResponse category,
     List<GetOrderDetailResponse> orderDetails
 ) {
 }
