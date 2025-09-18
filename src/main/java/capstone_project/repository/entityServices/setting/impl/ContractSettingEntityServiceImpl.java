@@ -19,8 +19,16 @@ public class ContractSettingEntityServiceImpl implements ContractSettingEntitySe
     private final ContractSettingRepository contractSettingRepository;
 
     @Override
-    public ContractSettingEntity save(ContractSettingEntity entity) {
-        return contractSettingRepository.save(entity);
+    public ContractSettingEntity save(ContractSettingEntity newSetting) {
+        return contractSettingRepository.findFirstByOrderByCreatedAtAsc()
+                .map(existing -> {
+                    // update
+                    existing.setDepositPercent(newSetting.getDepositPercent());
+                    existing.setExpiredDepositDate(newSetting.getExpiredDepositDate());
+                    existing.setInsuranceRate(newSetting.getInsuranceRate());
+                    return contractSettingRepository.save(existing);
+                })
+                .orElseGet(() -> contractSettingRepository.save(newSetting));
     }
 
     @Override
@@ -31,5 +39,10 @@ public class ContractSettingEntityServiceImpl implements ContractSettingEntitySe
     @Override
     public List<ContractSettingEntity> findAll() {
         return contractSettingRepository.findAll();
+    }
+
+    @Override
+    public Optional<ContractSettingEntity> findFirstByOrderByCreatedAtAsc() {
+        return contractSettingRepository.findFirstByOrderByCreatedAtAsc();
     }
 }

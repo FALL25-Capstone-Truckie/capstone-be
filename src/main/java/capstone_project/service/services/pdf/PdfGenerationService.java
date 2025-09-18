@@ -1,12 +1,16 @@
 package capstone_project.service.services.pdf;
 
+import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.entity.setting.ContractSettingEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
+import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.services.order.order.ContractService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +37,7 @@ public class PdfGenerationService {
     private final ContractService contractService;
     private final CustomerEntityService customerEntityService;
     private final UserEntityService userEntityService;
+    private final ContractSettingEntityService contractSettingEntityService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy");
 
@@ -93,6 +98,16 @@ public class PdfGenerationService {
             context.setVariable("calculationDetails", result.getSteps());
             context.setVariable("summary", result.getSummary());
             context.setVariable("distanceKm", distanceKm);
+
+            ContractSettingEntity setting = contractSettingEntityService.findFirstByOrderByCreatedAtAsc()
+                    .orElseThrow(() -> new NotFoundException(
+                            ErrorEnum.NOT_FOUND.getMessage(),
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+
+            context.setVariable("depositPercent", setting.getDepositPercent());
+            context.setVariable("expiredDepositDate", setting.getExpiredDepositDate());
+            context.setVariable("insuranceRate", setting.getInsuranceRate());
 
             String htmlContent = templateEngine.process("contract-pdf", context);
 
