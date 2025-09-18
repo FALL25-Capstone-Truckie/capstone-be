@@ -79,6 +79,9 @@ public class OrderPdfService {
 
             String pdfUrl = (String) uploadResult.get("secure_url");
 
+            contract.setAttachFileUrl(pdfUrl);
+            contractEntityService.save(contract);
+
             return ContractPdfResponse.builder()
                     .contractId(contractId.toString())
                     .pdfUrl(pdfUrl)
