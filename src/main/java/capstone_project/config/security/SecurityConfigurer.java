@@ -198,8 +198,8 @@ public class SecurityConfigurer {
                         // ================= CONTRACT =================
                         .requestMatchers(HttpMethod.GET, contractApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, contractRuleApiBasePath + "/**").authenticated()
-                        .requestMatchers(contractApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.STAFF.name())
                         .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(contractApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= PENALTY =================
                         .requestMatchers(HttpMethod.GET, penaltyApiBasePath + "/**").authenticated()
