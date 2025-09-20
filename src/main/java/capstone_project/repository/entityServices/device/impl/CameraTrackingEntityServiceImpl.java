@@ -30,4 +30,9 @@ public class CameraTrackingEntityServiceImpl implements CameraTrackingEntityServ
     public List<CameraTrackingEntity> findAll() {
         return cameraTrackingRepository.findAll();
     }
+
+    @Override
+    public List<CameraTrackingEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        return cameraTrackingRepository.findByVehicleAssignmentId(vehicleAssignmentId);
+    }
 }

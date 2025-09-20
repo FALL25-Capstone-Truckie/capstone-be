@@ -112,4 +112,11 @@ public class OrderController {
         final var result = orderService.getSimplifiedOrderForCustomerByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @GetMapping("/get-order-for-staff-by-order-id/{orderId}")
+    @PreAuthorize("hasRole('STAFF') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<StaffOrderForStaffResponse>> getOrderForStaffByOrderId(@PathVariable UUID orderId) {
+        final var result = orderService.getOrderForStaffByOrderId(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }

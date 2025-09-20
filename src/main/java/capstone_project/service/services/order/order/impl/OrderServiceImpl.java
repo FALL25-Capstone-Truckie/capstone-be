@@ -17,6 +17,7 @@ import capstone_project.dtos.response.order.contract.SimpleContractResponse;
 import capstone_project.dtos.response.order.transaction.SimpleTransactionResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.entity.auth.UserEntity;
+import capstone_project.entity.device.CameraTrackingEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.CategoryEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
@@ -24,6 +25,7 @@ import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
+import capstone_project.entity.user.driver.PenaltyHistoryEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
@@ -32,9 +34,13 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.order.order.OrderSizeEntityService;
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
+import capstone_project.repository.entityServices.device.CameraTrackingEntityService;
+import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
+import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
 import capstone_project.service.mapper.order.OrderMapper;
 import capstone_project.service.mapper.order.SimpleOrderMapper;
+import capstone_project.service.mapper.order.StaffOrderMapper;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
@@ -72,7 +78,10 @@ public class OrderServiceImpl implements OrderService {
     private final OrderDetailMapper orderDetailMapper;
     private final SimpleOrderMapper simpleOrderMapper;
     private final UserContextUtils userContextUtils;
-    private final UserEntityService userEntityService;
+    private final StaffOrderMapper staffOrderMapper;
+    private final PenaltyHistoryEntityService penaltyHistoryEntityService;
+    private final CameraTrackingEntityService cameraTrackingEntityService;
+    private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -524,6 +533,32 @@ public class OrderServiceImpl implements OrderService {
                 photosByVehicleAssignment,
                 contractResponse,
                 transactionResponses
+        );
+    }
+
+    @Override
+    public StaffOrderForStaffResponse getOrderForStaffByOrderId(UUID orderId) {
+        log.info("Getting order for staff with ID: {}", orderId);
+
+        // Get the basic order information
+        GetOrderResponse orderResponse = getOrderById(orderId);
+
+        // Get contract information if available
+        ContractResponse contractResponse = null;
+        List<TransactionResponse> transactionResponses = new ArrayList<>();
+
+        // Find the contract for this order if it exists
+        Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
+        if (contractEntity.isPresent()) {
+            contractResponse = contractService.getContractById(contractEntity.get().getId());
+            transactionResponses = transactionService.getTransactionsByContractId(contractEntity.get().getId());
+        }
+
+        // Use our mapper to convert to staff order response
+        return staffOrderMapper.toStaffOrderForStaffResponse(
+            orderResponse,
+            contractResponse,
+            transactionResponses
         );
     }
 }

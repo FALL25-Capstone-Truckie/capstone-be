@@ -8,8 +8,7 @@ public record GetOrderSealResponse (
         String description,
         LocalDateTime sealDate,
         String status,
-        UUID sealId,
-        UUID vehicleAssignmentId
+        UUID sealId
 ) {
 
 }
