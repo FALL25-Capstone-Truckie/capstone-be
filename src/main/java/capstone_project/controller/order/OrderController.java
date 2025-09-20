@@ -108,8 +108,8 @@ public class OrderController {
     }
 
     @GetMapping("/get-order-for-customer-by-order-id/{orderId}")
-    public ResponseEntity<ApiResponse<GetOrderForCustomerResponse>> getOrderForCustomerByOrderId(@PathVariable UUID orderId) {
-        final var result = orderService.getOrderForCustomerByOrderId(orderId);
+    public ResponseEntity<ApiResponse<SimpleOrderForCustomerResponse>> getOrderForCustomerByOrderId(@PathVariable UUID orderId) {
+        final var result = orderService.getSimplifiedOrderForCustomerByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }

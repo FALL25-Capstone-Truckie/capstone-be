@@ -13,6 +13,8 @@ import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.issue.GetIssueImageResponse;
 import capstone_project.dtos.response.order.*;
 import capstone_project.dtos.response.order.contract.ContractResponse;
+import capstone_project.dtos.response.order.contract.SimpleContractResponse;
+import capstone_project.dtos.response.order.transaction.SimpleTransactionResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
@@ -23,7 +25,6 @@ import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
-import capstone_project.repository.entityServices.order.conformation.PhotoCompletionEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
@@ -33,6 +34,7 @@ import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
 import capstone_project.service.mapper.order.OrderMapper;
+import capstone_project.service.mapper.order.SimpleOrderMapper;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
@@ -68,7 +70,9 @@ public class OrderServiceImpl implements OrderService {
     private final PhotoCompletionService photoCompletionService;
     private final OrderMapper orderMapper;
     private final OrderDetailMapper orderDetailMapper;
-    private  final UserContextUtils userContextUtils;
+    private final SimpleOrderMapper simpleOrderMapper;
+    private final UserContextUtils userContextUtils;
+    private final UserEntityService userEntityService;
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -467,6 +471,57 @@ public class OrderServiceImpl implements OrderService {
                 getOrderResponse,
                 getIssueImageResponses,
                 photoCompletionResponses,
+                contractResponse,
+                transactionResponses
+        );
+    }
+
+    @Override
+    public SimpleOrderForCustomerResponse getSimplifiedOrderForCustomerByOrderId(UUID orderId) {
+        // Get the basic order information
+        GetOrderResponse getOrderResponse = getOrderById(orderId);
+
+        // Maps to organize data by vehicle assignment (trip)
+        Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
+
+        // Process order details and collect trip-related information
+        for (GetOrderDetailResponse detail : getOrderResponse.orderDetails()) {
+            if (detail.vehicleAssignmentId() != null) {
+                UUID vehicleAssignmentId = detail.vehicleAssignmentId().id();
+
+                // Get issue information for this vehicle assignment/trip
+                GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(vehicleAssignmentId);
+                if (issueImageResponse != null) {
+                    issuesByVehicleAssignment.put(vehicleAssignmentId, issueImageResponse);
+                }
+
+                // Get photo completion information for this vehicle assignment/trip
+                List<PhotoCompletionResponse> photoCompletions = photoCompletionService.getByVehicleAssignment(vehicleAssignmentId);
+                if (photoCompletions != null && !photoCompletions.isEmpty()) {
+                    photosByVehicleAssignment.put(vehicleAssignmentId, photoCompletions);
+                }
+            }
+        }
+
+        // Get contract information if available
+        ContractResponse contractResponse = null;
+        List<TransactionResponse> transactionResponses = new ArrayList<>();
+
+        Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
+        if (contractEntity.isPresent()) {
+            contractResponse = contractService.getContractById(contractEntity.get().getId());
+            transactionResponses = transactionService.getTransactionsByContractId(contractEntity.get().getId());
+        }
+
+        // Convert data collections to lists for the response
+        List<GetIssueImageResponse> issueImageResponsesList = new ArrayList<>(issuesByVehicleAssignment.values());
+
+        // Convert to simplified response using the mapper that organizes data by trip
+        return simpleOrderMapper.toSimpleOrderForCustomerResponse(
+                getOrderResponse,
+                issueImageResponsesList,
+                photosByVehicleAssignment,
                 contractResponse,
                 transactionResponses
         );

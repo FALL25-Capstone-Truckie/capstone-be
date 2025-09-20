@@ -14,4 +14,7 @@ public interface OrderSealEntityService extends BaseEntityService<OrderSealEntit
     List<OrderSealEntity> findBySeal(SealEntity seal);
 
     OrderSealEntity findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment, String status);
+
+    // New method to find all order seals for a vehicle assignment regardless of status
+    List<OrderSealEntity> findAllByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment);
 }

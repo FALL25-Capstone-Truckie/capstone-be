@@ -11,4 +11,7 @@ public interface OrderSealRepository extends BaseRepository<OrderSealEntity> {
     List<OrderSealEntity> findBySeal(SealEntity seal);
 
     OrderSealEntity findByVehicleAssignmentAndStatus(VehicleAssignmentEntity vehicleAssignment, String status);
+
+    // New method to find all order seals for a vehicle assignment
+    List<OrderSealEntity> findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment);
 }

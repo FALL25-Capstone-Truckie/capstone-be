@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface OrderService {
+    List<OrderForCustomerListResponse> getOrdersForCurrentCustomer();
+
     CreateOrderResponse createOrder(CreateOrderRequest orderRequest, List<CreateOrderDetailRequest> listCreateOrderDetailRequests);
 
     CreateOrderResponse changeAStatusOrder(UUID orderId, OrderStatusEnum status);
@@ -46,5 +48,5 @@ public interface OrderService {
 
     GetOrderForCustomerResponse getOrderForCustomerByOrderId(UUID orderId);
 
-    List<OrderForCustomerListResponse> getOrdersForCurrentCustomer();
+    SimpleOrderForCustomerResponse getSimplifiedOrderForCustomerByOrderId(UUID orderId);
 }
