@@ -46,4 +46,9 @@ public class OrderSealEntityServiceImpl implements OrderSealEntityService {
     public OrderSealEntity findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment, String status) {
         return orderSealRepository.findByVehicleAssignmentAndStatus(vehicleAssignment, status);
     }
+
+    @Override
+    public List<OrderSealEntity> findAllByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment) {
+        return orderSealRepository.findByVehicleAssignment(vehicleAssignment);
+    }
 }

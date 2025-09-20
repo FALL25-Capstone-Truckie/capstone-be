@@ -131,4 +131,19 @@ public class OrderSealServiceImpl implements OrderSealService {
         OrderSealEntity existingSeal = orderSealEntityService.findByVehicleAssignment(vehicleAssignment.get(), CommonStatusEnum.ACTIVE.name());
         return orderSealMapper.toGetOrderSealResponse(existingSeal);
     }
+
+    @Override
+    public List<GetOrderSealResponse> getAllOrderSealsByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        Optional<VehicleAssignmentEntity> vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId);
+        if (vehicleAssignment.isEmpty()) {
+            throw new NotFoundException("Không tìm thấy vehicle assignment với ID: " + vehicleAssignmentId,
+                    ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        // Get all order seals for this vehicle assignment, regardless of status
+        List<OrderSealEntity> orderSeals = orderSealEntityService.findAllByVehicleAssignment(vehicleAssignment.get());
+
+        // Convert to response DTOs
+        return orderSealMapper.toGetOrderSealResponses(orderSeals);
+    }
 }

@@ -1,0 +1,31 @@
+package capstone_project.dtos.response.order;
+
+import capstone_project.dtos.response.issue.SimpleIssueImageResponse;
+import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
+
+import java.util.List;
+
+public record SimpleVehicleAssignmentResponse(
+    String id,
+    String vehicleName,
+    String licensePlateNumber,
+    SimpleDriverResponse primaryDriver,
+    SimpleDriverResponse secondaryDriver,
+    String status,
+    // Trip-related information
+    SimpleIssueImageResponse issue,
+    List<String> photoCompletions,
+    List<GetOrderSealResponse> orderSeals,
+    List<JourneyHistoryResponse> journeyHistory
+) {
+    // Constructor for backward compatibility
+    public SimpleVehicleAssignmentResponse(
+            String id,
+            String vehicleName,
+            String licensePlateNumber,
+            SimpleDriverResponse primaryDriver,
+            SimpleDriverResponse secondaryDriver,
+            String status) {
+        this(id, vehicleName, licensePlateNumber, primaryDriver, secondaryDriver, status, null, null, null, null);
+    }
+}

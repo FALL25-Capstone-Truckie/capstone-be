@@ -4,6 +4,7 @@ import capstone_project.dtos.request.order.seal.OrderSealRequest;
 import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
 import capstone_project.dtos.response.order.seal.GetSealFullResponse;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface OrderSealService {
@@ -14,4 +15,6 @@ public interface OrderSealService {
     GetSealFullResponse getAllBySealId(UUID sealId);
 
     GetOrderSealResponse getActiveOrderSealByVehicleAssignmentId(UUID vehicleAssignmentId);
+
+    List<GetOrderSealResponse> getAllOrderSealsByVehicleAssignmentId(UUID vehicleAssignmentId);
 }
