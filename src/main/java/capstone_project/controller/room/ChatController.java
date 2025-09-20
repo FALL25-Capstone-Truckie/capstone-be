@@ -13,6 +13,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -44,6 +45,16 @@ public class ChatController {
             @RequestParam(required = false) String lastMessageId
     ) throws ExecutionException, InterruptedException {
         ChatPageResponse response = chatService.getMessagesByRoomId(roomId, pageSize, lastMessageId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/rooms/{userId}/messages-supported")
+    public ResponseEntity<ChatPageResponse> getMessagesSupportedForCustomer(
+            @PathVariable UUID userId,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(required = false) String lastMessageId
+    ) throws ExecutionException, InterruptedException {
+        ChatPageResponse response = chatService.getMessagesForRoomSupportForCusByUserId(userId, pageSize, lastMessageId);
         return ResponseEntity.ok(response);
     }
 

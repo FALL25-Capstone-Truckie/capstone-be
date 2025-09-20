@@ -20,4 +20,6 @@ public interface RoomService {
     boolean activeRoomByOrderId(UUID orderId);
 
     boolean deleteRoomByOrderId(UUID orderId);
+
+    boolean isCustomerHasRoomSupported(UUID userId);
 }

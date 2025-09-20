@@ -246,9 +246,8 @@ public class SecurityConfigurer {
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
                         // ================= ROOM & CHAT =================
-                        .requestMatchers(roomApiBasePath + "/**").authenticated()
-                        .requestMatchers(chatApiBasePath + "/**").authenticated()
-
+                        .requestMatchers(roomApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+                        .requestMatchers(chatApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
                         // ================= SETTING =================
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())

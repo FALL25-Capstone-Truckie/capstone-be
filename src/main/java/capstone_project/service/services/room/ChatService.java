@@ -4,6 +4,7 @@ import capstone_project.dtos.request.room.MessageRequest;
 import capstone_project.dtos.response.room.ChatPageResponse;
 import capstone_project.dtos.response.room.ChatResponseDTO;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -12,4 +13,6 @@ public interface ChatService {
 
     ChatPageResponse getMessagesByRoomId(String roomId, int pageSize, String lastMessageId)
             throws ExecutionException, InterruptedException;
+
+    ChatPageResponse getMessagesForRoomSupportForCusByUserId(UUID userId, int pageSize, String lastMessageId) throws ExecutionException, InterruptedException;
 }

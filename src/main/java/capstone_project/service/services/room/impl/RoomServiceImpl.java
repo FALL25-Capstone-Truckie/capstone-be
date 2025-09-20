@@ -14,6 +14,7 @@ import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.service.mapper.room.RoomMapper;
+import capstone_project.service.services.room.ChatService;
 import capstone_project.service.services.room.RoomService;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
@@ -35,6 +36,7 @@ public class RoomServiceImpl implements RoomService {
     private final UserEntityService userEntityService;
     private final OrderEntityService orderEntityService;
     private final ContractEntityService contractEntityService;
+    private final ChatService chatService;
 
 
     @Override
@@ -50,6 +52,8 @@ public class RoomServiceImpl implements RoomService {
 
         String roomType;
         List<ParticipantInfo> participantInfoList = new ArrayList<>();
+
+
 
         if (request.orderId() == null || request.orderId().isBlank()) {
             // -------- TH1: Customer chủ động tạo ----------
@@ -289,4 +293,29 @@ public class RoomServiceImpl implements RoomService {
     public boolean deleteRoomByOrderId(UUID orderId) {
         return false;
     }
+
+    @Override
+    public boolean isCustomerHasRoomSupported(UUID userId) {
+        try {
+            CollectionReference roomsRef = firestore.collection("rooms");
+
+            // Query phòng có type = SUPPORTED và có userId trong participants
+            ApiFuture<QuerySnapshot> future = roomsRef
+                    .whereIn("type", Arrays.asList(RoomEnum.SUPPORT.name(), RoomEnum.SUPPORTED.name()))
+                    .whereArrayContains("participantIds", userId.toString())
+                    .limit(1)
+                    .get();
+
+
+            QuerySnapshot snapshot = future.get();
+
+            return !snapshot.isEmpty(); // nếu có ít nhất 1 room thì user đã có phòng supported
+        } catch (Exception e) {
+            log.error("Failed to check supported room for user {}", userId, e);
+            throw new RuntimeException("Cannot check room supported for customer", e);
+        }
+    }
+
+
+
 }
