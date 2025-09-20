@@ -23,10 +23,11 @@ public class CloudinaryServiceImpl implements CloudinaryService {
     @Override
     public Map<String, Object> uploadFile(byte[] file, String fileName, String folder) throws IOException {
         try {
-            Map<String, Object> params = ObjectUtils.asMap(
+            Map<String, Object> params = ObjectUtils.asMap
+                    (
                     "public_id", fileName,
                     "folder", folder,
-                    "resource_type", "auto" // This will automatically detect the file type
+                    "resource_type", "auto"
             );
 
             return cloudinary.uploader().upload(file, params);
