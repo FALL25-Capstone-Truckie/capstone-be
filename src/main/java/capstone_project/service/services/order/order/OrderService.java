@@ -49,4 +49,6 @@ public interface OrderService {
     GetOrderForCustomerResponse getOrderForCustomerByOrderId(UUID orderId);
 
     SimpleOrderForCustomerResponse getSimplifiedOrderForCustomerByOrderId(UUID orderId);
+
+    StaffOrderForStaffResponse getOrderForStaffByOrderId(UUID orderId);
 }

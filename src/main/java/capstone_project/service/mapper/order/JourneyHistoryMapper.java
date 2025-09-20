@@ -25,7 +25,6 @@ public abstract class JourneyHistoryMapper {
     @Mapping(target = "vehicleAssignmentEntity", source = "orderId", qualifiedByName = "vehicleAssignmentFromId")
     public abstract void toEntity(UpdateJourneyHistoryRequest req, @MappingTarget JourneyHistoryEntity entity);
 
-    @Mapping(target = "orderId", source = "vehicleAssignmentEntity.id")
     public abstract JourneyHistoryResponse toResponse(JourneyHistoryEntity entity);
 
     @Named("vehicleAssignmentFromId")

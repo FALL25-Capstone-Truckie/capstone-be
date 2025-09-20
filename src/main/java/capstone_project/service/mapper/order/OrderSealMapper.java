@@ -10,7 +10,6 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface OrderSealMapper {
     @Mapping(source = "seal.id", target = "sealId")
-    @Mapping(source = "vehicleAssignment.id", target = "vehicleAssignmentId")
     GetOrderSealResponse toGetOrderSealResponse(OrderSealEntity orderSealEntity);
 
     List<GetOrderSealResponse> toGetOrderSealResponses(List<OrderSealEntity> orderSealEntities);

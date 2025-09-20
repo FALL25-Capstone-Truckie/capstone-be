@@ -31,6 +31,15 @@ public class VehicleFuelConsumptionEntity extends BaseEntity {
     @Column(name = "odometer_reading_at_refuel")
     private BigDecimal odometerReadingAtRefuel;
 
+    @Column(name = "odometer_at_start_url", length = Integer.MAX_VALUE)
+    private String odometerAtStartUrl;
+
+    @Column(name = "odometer_at_finish_url", length = Integer.MAX_VALUE)
+    private String odometerAtFinishUrl;
+
+    @Column(name = "odometer_at_end_url", length = Integer.MAX_VALUE)
+    private String odometerAtEndUrl;
+
     @Column(name = "date_recorded")
     private LocalDateTime dateRecorded;
 
