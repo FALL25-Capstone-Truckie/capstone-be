@@ -6,8 +6,8 @@ import capstone_project.dtos.request.order.JourneyHistoryRequest;
 import capstone_project.dtos.request.order.UpdateJourneyHistoryRequest;
 import capstone_project.dtos.response.order.JourneyHistoryResponse;
 import capstone_project.entity.order.order.JourneyHistoryEntity;
-import capstone_project.entity.order.order.OrderEntity;
-import capstone_project.repository.entityServices.order.order.OrderEntityService;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import org.mapstruct.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -16,31 +16,31 @@ import java.util.UUID;
 @Mapper(componentModel = "spring")
 public abstract class JourneyHistoryMapper {
 
-    @Autowired protected OrderEntityService orderService;
+    @Autowired protected VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
-    @Mapping(target = "orderEntity", source = "orderId", qualifiedByName = "orderFromId")
+    @Mapping(target = "vehicleAssignmentEntity", source = "orderId", qualifiedByName = "vehicleAssignmentFromId")
     public abstract JourneyHistoryEntity toEntity(JourneyHistoryRequest req);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mapping(target = "orderEntity", source = "orderId", qualifiedByName = "orderFromId")
+    @Mapping(target = "vehicleAssignmentEntity", source = "orderId", qualifiedByName = "vehicleAssignmentFromId")
     public abstract void toEntity(UpdateJourneyHistoryRequest req, @MappingTarget JourneyHistoryEntity entity);
 
-    @Mapping(target = "orderId", source = "orderEntity.id")
+    @Mapping(target = "orderId", source = "vehicleAssignmentEntity.id")
     public abstract JourneyHistoryResponse toResponse(JourneyHistoryEntity entity);
 
-    @Named("orderFromId")
-    protected OrderEntity orderFromId(String id) {
-        if (id == null || id.trim().isEmpty()) {
+    @Named("vehicleAssignmentFromId")
+    protected VehicleAssignmentEntity vehicleAssignmentFromId(UUID id) {
+        if (id == null) {
             return null;
         }
         try {
-            return orderService.findEntityById(UUID.fromString(id))
+            return vehicleAssignmentEntityService.findEntityById(id)
                     .orElseThrow(() -> new NotFoundException(
-                            ErrorEnum.NOT_FOUND.getMessage(),
+                            "Vehicle assignment not found with ID: " + id,
                             ErrorEnum.NOT_FOUND.getErrorCode()));
         } catch (IllegalArgumentException e) {
             throw new NotFoundException(
-                    "Invalid UUID format for orderId: " + id,
+                    "Invalid UUID format for vehicleAssignmentId: " + id,
                     ErrorEnum.INVALID.getErrorCode());
         }
     }

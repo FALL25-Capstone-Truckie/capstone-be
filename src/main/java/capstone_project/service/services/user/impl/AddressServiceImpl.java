@@ -1,4 +1,3 @@
-
 package capstone_project.service.services.user.impl;
 
 import capstone_project.common.enums.ErrorEnum;
@@ -294,6 +293,7 @@ public class AddressServiceImpl implements AddressService {
                     entity.getWard(),
                     entity.getStreet(),
                     entity.getAddressType(),
+                    entity.getForDelivery(),
                     entity.getLatitude(),
                     entity.getLongitude(),
                     customerId

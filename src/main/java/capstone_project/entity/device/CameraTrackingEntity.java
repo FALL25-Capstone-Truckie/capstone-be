@@ -1,7 +1,6 @@
 package capstone_project.entity.device;
 
 import capstone_project.entity.common.BaseEntity;
-import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
@@ -28,10 +27,6 @@ public class CameraTrackingEntity extends BaseEntity {
     @Size(max = 100)
     @Column(name = "status", length = 100)
     private String status;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_detail_id")
-    private OrderDetailEntity orderDetail;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
