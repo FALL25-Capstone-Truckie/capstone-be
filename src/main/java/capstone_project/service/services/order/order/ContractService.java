@@ -1,12 +1,14 @@
 package capstone_project.service.services.order.order;
 
 import capstone_project.dtos.request.order.ContractRequest;
+import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.user.address.AddressEntity;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,8 @@ public interface ContractService {
                                                  Map<UUID, Integer> vehicleCountMap);
 
     BigDecimal calculateDistanceKm(AddressEntity from, AddressEntity to);
+
+    ContractResponse uploadContractFile(ContractFileUploadRequest contractFileUploadRequest) throws IOException;
 
     void deleteContract(UUID id);
 }

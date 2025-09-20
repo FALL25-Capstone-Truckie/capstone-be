@@ -7,9 +7,12 @@ import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.ContractRequest;
+import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
+import capstone_project.entity.device.DeviceEntity;
+import capstone_project.entity.order.conformation.PhotoCompletionEntity;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
 import capstone_project.entity.order.order.CategoryPricingDetailEntity;
@@ -20,6 +23,7 @@ import capstone_project.entity.pricing.BasingPriceEntity;
 import capstone_project.entity.pricing.DistanceRuleEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.entity.user.address.AddressEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractRuleEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryPricingDetailEntityService;
@@ -29,6 +33,7 @@ import capstone_project.repository.entityServices.pricing.BasingPriceEntityServi
 import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
 import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
 import capstone_project.service.mapper.order.ContractMapper;
+import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.user.DistanceService;
 import jakarta.transaction.Transactional;
@@ -36,6 +41,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -54,6 +60,7 @@ public class ContractServiceImpl implements ContractService {
     private final BasingPriceEntityService basingPriceEntityService;
     private final OrderDetailEntityService orderDetailEntityService;
     private final DistanceService distanceService;
+    private final CloudinaryService cloudinaryService;
 
     private final ContractMapper contractMapper;
 
@@ -626,4 +633,41 @@ public class ContractServiceImpl implements ContractService {
         log.info("Calculated raw distance: {} km", distanceKm);
         return BigDecimal.valueOf(distanceKm);
     }
+
+
+    // CONTRACT TO CLOUD
+
+
+    @Override
+    public ContractResponse uploadContractFile(ContractFileUploadRequest req) throws IOException {
+        log.info("Uploading contract file for contractId={}", req.contractId());
+        String fileName = "contract_" + UUID.randomUUID();
+
+        // upload Cloudinary
+        var uploadResult = cloudinaryService.uploadFile(
+                req.file().getBytes(),
+                fileName,
+                "CONTRACTS"
+        );
+
+
+        String imageUrl = uploadResult.get("secure_url").toString();
+
+        // load relationships
+        ContractEntity ce = contractEntityService.findEntityById(req.contractId())
+                .orElseThrow(() -> new RuntimeException("Contract not found by id: " + req.contractId()));
+
+        // save DB
+        ce.setAttachFileUrl(imageUrl);
+
+
+
+        var updated = contractEntityService.save(ce);
+        return contractMapper.toContractResponse(updated);
+
+    }
+
+
+
+
 }

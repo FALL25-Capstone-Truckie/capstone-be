@@ -1,16 +1,20 @@
 package capstone_project.controller.order;
 
 import capstone_project.dtos.request.order.ContractRequest;
+import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.service.services.order.order.ContractService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -62,6 +66,12 @@ public class ContractController {
     @GetMapping("{orderId}/suggest-assign-vehicles")
     public ResponseEntity<ApiResponse<List<ContractRuleAssignResponse>>> assignVehicles(@PathVariable UUID orderId) {
         final var result = contractService.assignVehicles(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PostMapping(path = "/upload-contract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<ContractResponse>>  uploadFile(ContractFileUploadRequest contractFileUploadRequest) throws IOException {
+        final var result = contractService.uploadContractFile(contractFileUploadRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
