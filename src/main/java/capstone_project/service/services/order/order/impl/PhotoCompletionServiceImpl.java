@@ -5,10 +5,8 @@ import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreatePhotoCompletionRequest;
 import capstone_project.dtos.request.order.UpdatePhotoCompletionRequest;
 import capstone_project.dtos.response.order.PhotoCompletionResponse;
-import capstone_project.entity.device.DeviceEntity;
 import capstone_project.entity.order.conformation.PhotoCompletionEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
-import capstone_project.repository.entityServices.device.DeviceEntityService;
 import capstone_project.repository.entityServices.order.conformation.PhotoCompletionEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.mapper.order.PhotoCompletionMapper;
@@ -31,7 +29,6 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
     private final PhotoCompletionEntityService photoCompletionEntityService;
     private final PhotoCompletionMapper photoCompletionMapper;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
-    private final DeviceEntityService deviceEntityService;
     private final CloudinaryService cloudinaryService;
 
 
@@ -50,15 +47,11 @@ public class PhotoCompletionServiceImpl implements PhotoCompletionService {
         VehicleAssignmentEntity vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
                 .orElseThrow(() -> new RuntimeException("VehicleAssignment not found"));
 
-        DeviceEntity device = deviceEntityService.findEntityById(request.deviceId())
-                .orElseThrow(() -> new RuntimeException("Device not found"));
-
         // save DB
         PhotoCompletionEntity entity = PhotoCompletionEntity.builder()
                 .imageUrl(imageUrl)
                 .description(request.description())
                 .vehicleAssignmentEntity(vehicleAssignment)
-                .deviceEntity(device)
                 .build();
         entity = photoCompletionEntityService.save(entity);
 

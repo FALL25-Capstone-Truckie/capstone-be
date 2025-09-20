@@ -1,6 +1,7 @@
 package capstone_project.entity.order.order;
 
 import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -40,4 +41,7 @@ public class VehicleFuelConsumptionEntity extends BaseEntity {
     @JoinColumn(name = "fuel_type_id")
     private FuelTypeEntity fuelTypeEntity;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vehicle_assignment_id", unique = true)
+    private VehicleAssignmentEntity vehicleAssignmentEntity;
 }

@@ -32,7 +32,7 @@ public class AddressEntity extends BaseEntity {
     private String street;
 
     @Column(name = "for_delivery")
-    private String forDelivery;
+    private Boolean forDelivery;
 
     @Column(name = "address_type")
     private Boolean addressType;

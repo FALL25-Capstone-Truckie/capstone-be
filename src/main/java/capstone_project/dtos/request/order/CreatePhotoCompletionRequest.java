@@ -4,7 +4,6 @@ import java.util.UUID;
 
 public record CreatePhotoCompletionRequest(
         String description,
-        UUID vehicleAssignmentId,
-        UUID deviceId
+        UUID vehicleAssignmentId
 ) {
 }

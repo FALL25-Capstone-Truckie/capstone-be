@@ -1,6 +1,7 @@
 package capstone_project.entity.order.order;
 
 import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -16,7 +17,7 @@ import java.time.LocalDateTime;
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderDetailSealEntity extends BaseEntity {
+public class OrderSealEntity extends BaseEntity {
 
     @Column(name = "seal_date")
     private LocalDateTime sealDate;
@@ -29,8 +30,8 @@ public class OrderDetailSealEntity extends BaseEntity {
     private String status;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_detail_id")
-    private OrderDetailEntity orderDetail;
+    @JoinColumn(name = "vehicle_assignment_id")
+    private VehicleAssignmentEntity vehicleAssignment;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "seal_id")
