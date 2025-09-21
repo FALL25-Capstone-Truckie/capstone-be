@@ -1,4 +1,3 @@
-
 package capstone_project.service.services.user.impl;
 
 import capstone_project.common.enums.ErrorEnum;
@@ -14,6 +13,7 @@ import capstone_project.service.mapper.user.AddressMapper;
 import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.AddressService;
 import capstone_project.common.utils.AddressUtil;
+import capstone_project.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +34,7 @@ public class AddressServiceImpl implements AddressService {
     private final AddressMapper addressMapper;
     private final VietMapGeocodingServiceImpl geocodingService;
     private final RedisService redisService;
+    private final UserContextUtils userContextUtils;
 
     private static final String ALL_ADDRESSES_CACHE_KEY = "addresses:all";
     private static final String ADDRESS_CACHE_KEY_PREFIX = "address:";
@@ -271,6 +272,20 @@ public class AddressServiceImpl implements AddressService {
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     );
                 });
+    }
+
+    @Override
+    public List<AddressResponse> getMyAddresses() {
+        log.info("Fetching addresses for current user");
+
+        // Get current customer ID from security context
+        UUID currentCustomerId = userContextUtils.getCurrentCustomerId();
+        log.info("Current customer ID: {}", currentCustomerId);
+
+        // Xóa logic cache để đơn giản hóa và loại bỏ các vấn đề tiềm ẩn
+
+        // Dùng trực tiếp logic của getAddressesByCustomerId để đảm bảo kết quả nhất quán
+        return getAddressesByCustomerId(currentCustomerId);
     }
 
     /**

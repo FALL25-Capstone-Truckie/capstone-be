@@ -14,7 +14,6 @@ public record JourneyHistoryResponse(
         String status,
         BigDecimal totalDistance,
         Boolean isReportedIncident,
-        UUID orderId,
         LocalDateTime createdAt,
         LocalDateTime modifiedAt
 ) {}

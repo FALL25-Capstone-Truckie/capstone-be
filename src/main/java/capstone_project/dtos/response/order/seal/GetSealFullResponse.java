@@ -4,6 +4,6 @@ import java.util.List;
 
 public record GetSealFullResponse(
         GetSealResponse getSealResponse,
-        List<GetOrderDetailSealResponse> getOrderDetailSealResponses
+        List<GetOrderSealResponse> getOrderDetailSealResponses
 ) {
 }

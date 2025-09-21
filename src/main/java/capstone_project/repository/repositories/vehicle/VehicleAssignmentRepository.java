@@ -14,21 +14,30 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
     List<VehicleAssignmentEntity> findByVehicleEntityId(UUID vehicleEntityId);
 
     @Query(value = """
-    SELECT va.*
-    FROM vehicle_assignments va
-    JOIN vehicles v ON v.id = va.vehicle_id
-    JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
-    JOIN (
-        SELECT v.id AS vehicle_id, COUNT(va.id) AS active_count
-        FROM vehicles v
-        JOIN vehicle_assignments va ON v.id = va.vehicle_id
-        WHERE va.status = 'ASSIGNED'
-        GROUP BY v.id
-    ) sub ON va.vehicle_id = sub.vehicle_id
-    WHERE va.status = 'ASSIGNED'
-      AND vt.id = :vehicleTypeId
-    ORDER BY sub.active_count ASC
-""", nativeQuery = true)
+        SELECT va.id,
+               va.driver_id_1,
+               va.driver_id_2,
+               v.id,
+               COUNT(od.vehicle_assignment_id) AS journey_completed
+        FROM vehicle_assignments va
+        JOIN vehicles v ON v.id = va.vehicle_id
+        JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
+        LEFT JOIN order_details od ON od.vehicle_assignment_id = va.id
+        WHERE va.status = 'ACTIVE'
+          AND vt.id = :vehicleTypeId
+          AND va.id NOT IN (
+              SELECT va.id
+              FROM vehicle_assignments va
+              JOIN vehicles v ON v.id = va.vehicle_id
+              JOIN vehicle_types vt ON vt.id = v.vehicle_type_id
+              JOIN order_details od ON od.vehicle_assignment_id = va.id
+              WHERE od.estimated_start_time >= CURRENT_DATE
+                AND od.estimated_start_time < CURRENT_DATE + INTERVAL '1 day'
+              GROUP BY v.id, va.id
+          )
+        GROUP BY va.id, va.driver_id_1, va.driver_id_2, v.id
+        ORDER BY journey_completed ASC
+        """, nativeQuery = true)
     List<VehicleAssignmentEntity> findAssignmentsOrderByActiveCountAscAndVehicleType(@Param("vehicleTypeId") UUID vehicleTypeId);
 
     @Query(

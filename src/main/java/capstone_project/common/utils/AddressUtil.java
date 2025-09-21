@@ -27,7 +27,7 @@ public class AddressUtil {
                 response.province(),
                 response.ward(),
                 response.street(),
-                null,
+                null, // addressType
                 response.latitude(),
                 response.longitude(),
                 null
@@ -40,13 +40,20 @@ public class AddressUtil {
         String ward = parts.length > 1 ? parts[1].trim() : "";
         String province = parts.length > 2 ? parts[2].trim() : "";
 
-        return new AddressResponse(null, province, ward, street, null,
-                DEFAULT_LATITUDE, DEFAULT_LONGITUDE, null);
+        return new AddressResponse(
+                null,
+                province,
+                ward,
+                street,
+                null, // addressType
+                DEFAULT_LATITUDE,
+                DEFAULT_LONGITUDE,
+                null
+        );
     }
 
     public static void setCoordinatesOnEntity(AddressEntity entity, BigDecimal latitude, BigDecimal longitude) {
         entity.setLatitude(latitude);
         entity.setLongitude(longitude);
-
     }
 }
