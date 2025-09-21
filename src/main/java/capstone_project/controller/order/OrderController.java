@@ -119,4 +119,11 @@ public class OrderController {
         final var result = orderService.getOrderForStaffByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @PutMapping("/sign-contract")
+    public ResponseEntity<ApiResponse<Boolean>> signContractAndOrder(
+            @RequestParam UUID contractId) {
+        final var result = orderService.signContractAndOrder(contractId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }

@@ -1,9 +1,6 @@
 package capstone_project.service.services.order.order.impl;
 
-import capstone_project.common.enums.CommonStatusEnum;
-import capstone_project.common.enums.ErrorEnum;
-import capstone_project.common.enums.OrderStatusEnum;
-import capstone_project.common.enums.UnitEnum;
+import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
@@ -560,5 +557,21 @@ public class OrderServiceImpl implements OrderService {
             contractResponse,
             transactionResponses
         );
+    }
+
+    @Override
+    @Transactional
+    public boolean signContractAndOrder(UUID contractId) {
+        ContractEntity contractEntity = contractEntityService.findEntityById(contractId)
+         .orElseThrow(() -> new NotFoundException(
+                "Contract not found with user id: " + contractId,
+                ErrorEnum.NOT_FOUND.getErrorCode()));
+
+        OrderEntity orderEntity = contractEntity.getOrderEntity();
+
+        contractEntity.setStatus(ContractStatusEnum.CONTRACT_SIGNED.name());
+        changeAStatusOrder(orderEntity.getId(),OrderStatusEnum.CONTRACT_SIGNED);
+
+        return true;
     }
 }

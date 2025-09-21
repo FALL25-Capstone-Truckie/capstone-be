@@ -51,4 +51,6 @@ public interface OrderService {
     SimpleOrderForCustomerResponse getSimplifiedOrderForCustomerByOrderId(UUID orderId);
 
     StaffOrderForStaffResponse getOrderForStaffByOrderId(UUID orderId);
+
+    boolean signContractAndOrder(UUID contractId);
 }
