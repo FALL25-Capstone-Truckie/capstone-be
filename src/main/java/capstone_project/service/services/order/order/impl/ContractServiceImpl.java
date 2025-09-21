@@ -667,7 +667,14 @@ public class ContractServiceImpl implements ContractService {
 
     }
 
-
-
-
+    @Override
+    public ContractResponse getContractByOrderId(UUID orderId) {
+        log.info("Getting contract by Order ID: {}", orderId);
+        ContractEntity contractEntity = contractEntityService.getContractByOrderId(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Contract not found for order ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+        return contractMapper.toContractResponse(contractEntity);
+    }
 }

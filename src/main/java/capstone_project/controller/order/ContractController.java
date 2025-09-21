@@ -38,6 +38,12 @@ public class ContractController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    @GetMapping("/order/{orderId}")
+    public ResponseEntity<ApiResponse<ContractResponse>> getContractByOrderId(@PathVariable UUID orderId) {
+        final var result = contractService.getContractByOrderId(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
     /*
     * API này chỉ tạo hợp đồng rỗng (trong đó chưa có rule nào được áp dụng) --> chưa tính được tiền
     * qua sử dụng API createListContractRules
