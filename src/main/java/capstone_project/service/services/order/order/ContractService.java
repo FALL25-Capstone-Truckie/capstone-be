@@ -19,6 +19,8 @@ public interface ContractService {
 
     ContractResponse getContractById(UUID id);
 
+    ContractResponse getContractByOrderId(UUID orderId);
+
     ContractResponse createContract(ContractRequest contractRequest);
 
     ContractResponse createBothContractAndContractRule(ContractRequest contractRequest);
