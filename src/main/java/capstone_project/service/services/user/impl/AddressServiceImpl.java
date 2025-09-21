@@ -13,7 +13,7 @@ import capstone_project.service.mapper.user.AddressMapper;
 import capstone_project.service.services.redis.RedisService;
 import capstone_project.service.services.user.AddressService;
 import capstone_project.common.utils.AddressUtil;
-import capstone_project.utils.UserContextUtils;
+import capstone_project.common.utils.UserContextUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
