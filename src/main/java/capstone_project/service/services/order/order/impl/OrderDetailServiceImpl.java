@@ -4,7 +4,10 @@ import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
+import capstone_project.dtos.request.order.DetailsForAssignemntRequest;
 import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
+import capstone_project.dtos.request.vehicle.CreateAndAssignForDetailsRequest;
+import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
 import capstone_project.dtos.response.order.GetOrderDetailsResponseForList;
@@ -87,8 +90,8 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
-        // Check transition hợp lệ
-        if (currentStatus == null || !orderService.isValidTransition(currentStatus, orderDetailStatus)) {
+        // Check transition hợp lệ using order detail specific validation
+        if (currentStatus == null || !isValidTransitionForOrderDetail(currentStatus, orderDetailStatus)) {
             throw new BadRequestException(
                     ErrorEnum.INVALID.getMessage() + " Cannot change from " + orderDetailEntity.getStatus() + " to " + orderDetailStatus,
                     ErrorEnum.INVALID.getErrorCode()
@@ -358,13 +361,11 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         // 3. Map VehicleTypeId -> List<OrderDetailId>
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
             UUID vehicleRuleId = response.getVehicleRuleId();
-
             VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
-
             UUID vehicleTypeId = vehicleRule.getVehicleTypeEntity().getId();
             mapVehicleTypeAndOrderDetail.put(vehicleTypeId, response.getAssignedDetails());
         }
@@ -401,9 +402,84 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         );
     }
 
+    @Override
+    @Transactional
+    public List<GetOrderDetailsResponseForList> createAndAssignVehicleAssignmentForDetails(CreateAndAssignForDetailsRequest request) {
+        List<GetOrderDetailsResponseForList> resultResponse = new ArrayList<>();
+
+        // Iterate through tracking codes and their assignments
+        for(Map.Entry<String, VehicleAssignmentRequest> entry : request.assignments().entrySet()) {
+            String trackingCode = entry.getKey();
+            VehicleAssignmentRequest assignmentRequest = entry.getValue();
+
+            // Create the vehicle assignment
+            VehicleAssignmentResponse response = vehicleAssignmentService.createAssignment(assignmentRequest);
+            VehicleAssignmentEntity vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(response.id())
+                    .orElseThrow(() -> new NotFoundException(
+                            "Vehicle assignment not found: " + response.id(),
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+
+            // Find order detail using tracking code and update it
+            OrderDetailEntity detail = orderDetailEntityService.findByTrackingCode(trackingCode)
+                    .orElseThrow(() -> new NotFoundException(
+                            "Order detail not found with tracking code: " + trackingCode,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+
+            // Update and save the order detail
+            detail.setVehicleAssignmentEntity(vehicleAssignmentEntity);
+            changeStatusOrderDetailExceptTroubles(detail.getId(), OrderStatusEnum.ASSIGNED_TO_DRIVER);
+            orderDetailEntityService.save(detail);
+
+            // Add to result
+            resultResponse.add(orderDetailMapper.toGetOrderDetailsResponseForList(detail));
+        }
+
+        return resultResponse;
+    }
+
 
     @Override
     public List<GetOrderDetailsResponseForList> getAllOrderDetails() {
         return orderDetailMapper.toGetOrderDetailResponseListBasic(orderDetailEntityService.findAll());
+    }
+
+    /**
+     * Validates if a transition is valid for an order detail
+     * Order details represent individual cargo/shipment lots with a simplified flow
+     */
+    @Override
+    public boolean isValidTransitionForOrderDetail(OrderStatusEnum current, OrderStatusEnum next) {
+        switch(current) {
+            case PENDING:
+                return next == OrderStatusEnum.PROCESSING || next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
+            case PROCESSING:
+                return next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
+            case ASSIGNED_TO_DRIVER:
+                return next == OrderStatusEnum.PICKED_UP;
+            case PICKED_UP:
+                return next == OrderStatusEnum.SEALED_COMPLETED;
+            case SEALED_COMPLETED:
+                return next == OrderStatusEnum.ONGOING_DELIVERED;
+            case ONGOING_DELIVERED:
+                return next == OrderStatusEnum.DELIVERED;
+            case DELIVERED:
+                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.RETURNING;
+            case RETURNING:
+                return next == OrderStatusEnum.RETURNED;
+            case RETURNED:
+                return next == OrderStatusEnum.SUCCESSFUL;
+            // Terminal states
+            case CANCELLED:
+            case SUCCESSFUL:
+                return false;
+            default:
+                // For any status that can be directly cancelled
+                if (next == OrderStatusEnum.CANCELLED) {
+                    return true;
+                }
+                return false;
+        }
     }
 }
