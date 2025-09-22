@@ -78,4 +78,44 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
 
     boolean existsByDriver1IdAndStatus(UUID driverId, String status);
     boolean existsByDriver2IdAndStatus(UUID driverId, String status);
+
+    /**
+     * Đếm số chuyến đã hoàn thành mà tài xế là driver1
+     * @param driverId ID của tài xế
+     * @return Số chuyến đã hoàn thành
+     */
+    @Query(value = """
+        SELECT COUNT(va.id)
+        FROM vehicle_assignments va
+        JOIN order_details od ON od.vehicle_assignment_id = va.id
+        WHERE va.driver_id_1 = :driverId
+        AND od.status = 'COMPLETED'
+    """, nativeQuery = true)
+    int countCompletedTripsAsDriver1(@Param("driverId") UUID driverId);
+
+    /**
+     * Đếm số chuyến đã hoàn thành mà tài xế là driver2
+     * @param driverId ID của tài xế
+     * @return Số chuyến đã hoàn thành
+     */
+    @Query(value = """
+        SELECT COUNT(va.id)
+        FROM vehicle_assignments va
+        JOIN order_details od ON od.vehicle_assignment_id = va.id
+        WHERE va.driver_id_2 = :driverId
+        AND od.status = 'COMPLETED'
+    """, nativeQuery = true)
+    int countCompletedTripsAsDriver2(@Param("driverId") UUID driverId);
+
+    /**
+     * Tìm vehicle assignment gần nhất của tài xế (driver1)
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va WHERE va.driver1.id = :driverId ORDER BY va.createdAt DESC")
+    Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver1Id(@Param("driverId") UUID driverId);
+
+    /**
+     * Tìm vehicle assignment gần nhất của tài xế (driver2)
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va WHERE va.driver2.id = :driverId ORDER BY va.createdAt DESC")
+    Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver2Id(@Param("driverId") UUID driverId);
 }
