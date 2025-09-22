@@ -203,59 +203,93 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(vehicleRule.getVehicleTypeEntity().getVehicleTypeName());
             List<VehicleEntity> getVehiclesByVehicleType = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(vehicleRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
             log.info("Tìm thấy {} xe ACTIVE cho loại {}", getVehiclesByVehicleType.size(), vehicleTypeEnum);
+
+            // Lấy tất cả các tài xế hợp lệ cho loại xe này
+            List<DriverEntity> allEligibleDrivers = driverEntityService.findByStatus(CommonStatusEnum.ACTIVE.name())
+                    .stream()
+                    .filter(d -> driverService.isCheckClassDriverLicenseForVehicleType(d, vehicleTypeEnum))
+                    .filter(d -> !entityService.existsActiveAssignmentForDriver(d.getId()))
+                    .toList();
+            log.info("Tìm thấy {} tài xế ACTIVE hợp lệ cho loại xe {}", allEligibleDrivers.size(), vehicleTypeEnum);
+
+            // Giới hạn số lượng xe để tránh quá nhiều gợi ý
+            final int MAX_VEHICLES_PER_DETAIL = 5;
+
+            // Sắp xếp xe theo mức độ sử dụng (ít dùng nhất lên đầu)
             List<UUID> vehicleIds = getVehiclesByVehicleType.stream().map(VehicleEntity::getId).toList();
-            for (UUID vehicleId : sortVehiclesByUsageThisMonth(vehicleIds)) {
-                Map<VehicleResponse, List<DriverResponse>> sampleVehicleAssignment = new HashMap<>();
+            List<UUID> sortedVehicleIds = sortVehiclesByUsageThisMonth(vehicleIds);
+
+            // Tạo một map để giữ các vehicle assignment cho order detail này
+            Map<VehicleResponse, List<DriverResponse>> detailVehicleAssignments = new HashMap<>();
+
+            int vehicleCount = 0;
+            for (UUID vehicleId : sortedVehicleIds) {
+                // Giới hạn số lượng xe
+                if (vehicleCount >= MAX_VEHICLES_PER_DETAIL) {
+                    break;
+                }
+
                 VehicleEntity vehicle = vehicleEntityService.findEntityById(vehicleId).get();
                 Optional<VehicleAssignmentEntity> activeAssignment = entityService.findVehicleAssignmentByVehicleEntityAndStatus(vehicle, CommonStatusEnum.ACTIVE.name());
+
                 if (activeAssignment.isPresent()) {
-                    continue;
+                    continue;  // Bỏ qua xe đang có assignment
                 }
-                List<DriverEntity> availableDrivers = driverEntityService.findByStatus(CommonStatusEnum.ACTIVE.name())
-                        .stream()
-                        .filter(d -> driverService.isCheckClassDriverLicenseForVehicleType(d, vehicleTypeEnum))
-                        .filter(d -> !entityService.existsActiveAssignmentForDriver(d.getId()))
-                        .toList();
-                log.info("Tìm thấy {} tài xế ACTIVE hợp lệ cho xe {}", availableDrivers.size(), vehicle.getId());
-                List<DriverEntity> selectedDrivers = new ArrayList<>();
+
+                // Ưu tiên tài xế từ assignment gần đây nhất nếu có
+                List<DriverEntity> preferredDrivers = new ArrayList<>();
                 List<VehicleAssignmentEntity> pastAssignments = entityService.findAssignmentsByVehicleOrderByCreatedAtDesc(vehicle);
+
                 if (!pastAssignments.isEmpty()) {
                     VehicleAssignmentEntity lastAssignment = pastAssignments.get(0);
                     DriverEntity driver1 = lastAssignment.getDriver1();
                     DriverEntity driver2 = lastAssignment.getDriver2();
+
                     if (driver1 != null && CommonStatusEnum.ACTIVE.name().equals(driver1.getStatus()) &&
                             driverService.isCheckClassDriverLicenseForVehicleType(driver1, vehicleTypeEnum) &&
                             !entityService.existsActiveAssignmentForDriver(driver1.getId())) {
-                        selectedDrivers.add(driver1);
+                        preferredDrivers.add(driver1);
                     }
+
                     if (driver2 != null && CommonStatusEnum.ACTIVE.name().equals(driver2.getStatus()) &&
                             driverService.isCheckClassDriverLicenseForVehicleType(driver2, vehicleTypeEnum) &&
                             !entityService.existsActiveAssignmentForDriver(driver2.getId()) &&
-                            !selectedDrivers.contains(driver2)) {
-                        selectedDrivers.add(driver2);
+                            !preferredDrivers.contains(driver2)) {
+                        preferredDrivers.add(driver2);
                     }
                 }
-                // Luôn bổ sung từ availableDrivers cho đủ 2 tài xế
-                for (DriverEntity d : availableDrivers) {
-                    if (selectedDrivers.size() >= 2) break;
-                    if (!selectedDrivers.contains(d)) {
-                        selectedDrivers.add(d);
+
+                // Danh sách tài xế đề xuất cho xe này (ưu tiên + thêm tài xế khác)
+                List<DriverEntity> selectedDrivers = new ArrayList<>(preferredDrivers);
+
+                // Thêm tài xế khác từ danh sách tài xế hợp lệ
+                // Lấy tối đa 5 tài xế cho mỗi xe
+                final int MAX_DRIVERS_PER_VEHICLE = 5;
+
+                for (DriverEntity driver : allEligibleDrivers) {
+                    if (selectedDrivers.size() >= MAX_DRIVERS_PER_VEHICLE) break;
+                    if (!selectedDrivers.contains(driver)) {
+                        selectedDrivers.add(driver);
                     }
                 }
-                log.info("Chọn được {} tài xế cho xe {}", selectedDrivers.size(), vehicle.getId());
-                if (selectedDrivers.size() == 2) {
+
+                if (!selectedDrivers.isEmpty()) {
                     List<DriverResponse> driverResponses = selectedDrivers.stream()
                             .map(driverMapper::mapDriverResponse)
                             .toList();
-                    sampleVehicleAssignment.put(vehicleMapper.toResponse(vehicle), driverResponses);
-                }
-                if (!sampleVehicleAssignment.isEmpty()) {
-                    sampleVehicleAssignmentResponses.add(
-                            new SampleVehicleAssignmentResponse(response.getAssignedDetails(), sampleVehicleAssignment)
-                    );
+
+                    detailVehicleAssignments.put(vehicleMapper.toResponse(vehicle), driverResponses);
+                    vehicleCount++;
                 }
             }
+
+            if (!detailVehicleAssignments.isEmpty()) {
+                sampleVehicleAssignmentResponses.add(
+                        new SampleVehicleAssignmentResponse(response.getAssignedDetails(), detailVehicleAssignments)
+                );
+            }
         }
+
         if (sampleVehicleAssignmentResponses.isEmpty()) {
             log.warn("Không tìm được cặp xe và tài xế phù hợp cho order {}", orderID);
         }
@@ -263,38 +297,189 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     }
 
     /**
-     * Chuyển đổi response phức tạp sang response đơn giản hóa
+     * Chuyển đổi response phức tạp sang response đơn giản hóa, nhóm theo order detail ID
+     * Thêm đánh dấu cho xe và tài xế phù hợp nhất (isRecommended=true)
+     * Bổ sung thông tin từ dữ liệu thực tế: vi phạm, số chuyến, kinh nghiệm, thời gian hoạt động gần nhất
      */
     public SimplifiedVehicleAssignmentResponse convertToSimplifiedResponse(List<SampleVehicleAssignmentResponse> responses) {
-        List<SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO> vehicleSuggestions = new ArrayList<>();
+        Map<UUID, List<SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO>> suggestionsByDetailId = new HashMap<>();
 
+        // Thu thập tất cả driver ID để tính số chuyến đã hoàn thành
+        Set<UUID> allDriverIds = new HashSet<>();
         for (SampleVehicleAssignmentResponse response : responses) {
-            for (Map.Entry<VehicleResponse, List<DriverResponse>> entry : response.sampleVehicleAssignment().entrySet()) {
-                VehicleResponse vehicleResponse = entry.getKey();
-                List<DriverResponse> driverResponses = entry.getValue();
-
-                List<SimplifiedVehicleAssignmentResponse.DriverSuggestionDTO> driverSuggestionDTOs = driverResponses.stream()
-                        .map(driver -> new SimplifiedVehicleAssignmentResponse.DriverSuggestionDTO(
-                                UUID.fromString(driver.getId()),
-                                driver.getUserResponse().getFullName(),
-                                driver.getDriverLicenseNumber(),
-                                driver.getLicenseClass()
-                        ))
-                        .toList();
-
-                vehicleSuggestions.add(
-                        new SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO(
-                                UUID.fromString(vehicleResponse.id()),
-                                vehicleResponse.licensePlateNumber(),
-                                vehicleResponse.model(),
-                                vehicleResponse.manufacturer(),
-                                driverSuggestionDTOs
-                        )
-                );
+            for (List<DriverResponse> driverList : response.sampleVehicleAssignment().values()) {
+                for (DriverResponse driver : driverList) {
+                    allDriverIds.add(UUID.fromString(driver.getId()));
+                }
             }
         }
 
-        return new SimplifiedVehicleAssignmentResponse(vehicleSuggestions);
+        // Tính số chuyến đã hoàn thành cho mỗi tài xế
+        Map<UUID, Integer> driversCompletedTripsMap = countCompletedTripsByDrivers(allDriverIds);
+
+        // Tìm thời gian hoạt động gần nhất của mỗi tài xế
+        Map<UUID, String> driverLastActiveTimeMap = findLastActiveTimeForDrivers(allDriverIds);
+
+        for (SampleVehicleAssignmentResponse response : responses) {
+            // Với mỗi order detail ID trong assignedDetails
+            for (UUID detailId : response.assignedDetails()) {
+                // Danh sách xe gợi ý cho order detail này
+                List<SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO> detailSuggestions = new ArrayList<>();
+
+                // Lấy danh sách xe từ response
+                List<VehicleResponse> vehicles = new ArrayList<>(response.sampleVehicleAssignment().keySet());
+
+                // Xác định xe phù hợp nhất (xe ít được sử dụng nhất - đầu tiên trong danh sách đã sắp xếp)
+                VehicleResponse mostSuitableVehicle = vehicles.isEmpty() ? null : vehicles.get(0);
+
+                // Xử lý các vehicle và driver từ response
+                for (Map.Entry<VehicleResponse, List<DriverResponse>> entry : response.sampleVehicleAssignment().entrySet()) {
+                    VehicleResponse vehicleResponse = entry.getKey();
+                    List<DriverResponse> driverResponses = entry.getValue();
+
+                    // Kiểm tra nếu là xe phù hợp nhất
+                    boolean isRecommendedVehicle = vehicleResponse.equals(mostSuitableVehicle);
+
+                    // Xác định tài xế phù hợp nhất (2 tài xế đầu tiên trong danh sách)
+                    // Tài xế đầu danh sách thường là các tài xế đã từng lái xe này
+                    List<String> recommendedDriverIds = driverResponses.stream()
+                            .limit(2)
+                            .map(DriverResponse::getId)
+                            .toList();
+
+                    // Chuyển đổi driver response sang DriverSuggestionDTO với thông tin bổ sung
+                    List<SimplifiedVehicleAssignmentResponse.DriverSuggestionDTO> driverSuggestionDTOs = driverResponses.stream()
+                            .map(driver -> {
+                                // Tính toán số lượng vi phạm
+                                int violationCount = driver.getPenaltyHistories() != null ? driver.getPenaltyHistories().size() : 0;
+
+                                // Lấy số chuyến đã hoàn thành từ map
+                                UUID driverId = UUID.fromString(driver.getId());
+                                int completedTrips = driversCompletedTripsMap.getOrDefault(driverId, 0);
+
+                                // Lấy thời gian hoạt động gần nhất từ map
+                                String lastActiveTime = driverLastActiveTimeMap.getOrDefault(driverId, "Chưa có hoạt động");
+
+                                // Tính thời gian làm việc dựa trên ngày tạo hồ sơ của tài xế (createdAt)
+                                String workExperience = "Chưa có dữ liệu";
+
+                                try {
+                                    // Lấy thông tin createdAt của tài xế từ DriverEntity
+                                    DriverEntity driverEntity = driverEntityService.findEntityById(driverId)
+                                            .orElse(null);
+
+                                    if (driverEntity != null && driverEntity.getCreatedAt() != null) {
+                                        LocalDate joinDate = driverEntity.getCreatedAt().toLocalDate();
+                                        LocalDate today = LocalDate.now();
+
+                                        // Tính số năm làm việc
+                                        int yearsOfWork = today.getYear() - joinDate.getYear();
+
+                                        // Điều chỉnh nếu chưa đến ngày kỷ niệm hàng năm
+                                        if (today.getMonthValue() < joinDate.getMonthValue() ||
+                                            (today.getMonthValue() == joinDate.getMonthValue() &&
+                                             today.getDayOfMonth() < joinDate.getDayOfMonth())) {
+                                            yearsOfWork--;
+                                        }
+
+                                        // Tính số tháng làm việc
+                                        int monthsOfWork = today.getMonthValue() - joinDate.getMonthValue();
+                                        if (monthsOfWork < 0) monthsOfWork += 12;
+                                        if (today.getDayOfMonth() < joinDate.getDayOfMonth()) {
+                                            monthsOfWork = (monthsOfWork + 11) % 12; // Điều chỉnh nếu chưa đến ngày kỷ niệm hàng tháng
+                                        }
+
+                                        if (yearsOfWork == 0) {
+                                            workExperience = monthsOfWork + " tháng";
+                                        } else {
+                                            workExperience = yearsOfWork + " năm";
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    log.error("Lỗi khi tính thời gian làm việc cho tài xế {}: {}", driverId, e.getMessage());
+                                    workExperience = "Chưa có dữ liệu";
+                                }
+
+                                return new SimplifiedVehicleAssignmentResponse.DriverSuggestionDTO(
+                                        UUID.fromString(driver.getId()),
+                                        driver.getUserResponse().getFullName(),
+                                        driver.getDriverLicenseNumber(),
+                                        driver.getLicenseClass(),
+                                        recommendedDriverIds.contains(driver.getId()), // đánh dấu tài xế phù hợp nhất
+                                        violationCount,         // Số lần vi phạm
+                                        completedTrips,         // Số chuyến đã hoàn thành (từ dữ liệu thực)
+                                        workExperience,        // Kinh nghiệm (tính từ dateOfPassing)
+                                        lastActiveTime          // Thời gian hoạt động gần nhất
+                                );
+                            })
+                            .toList();
+
+                    // Tạo VehicleSuggestionDTO với thông tin isRecommended
+                    SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO vehicleSuggestionDTO =
+                            new SimplifiedVehicleAssignmentResponse.VehicleSuggestionDTO(
+                                    UUID.fromString(vehicleResponse.id()),
+                                    vehicleResponse.licensePlateNumber(),
+                                    vehicleResponse.model(),
+                                    vehicleResponse.manufacturer(),
+                                    driverSuggestionDTOs,
+                                    isRecommendedVehicle // đánh dấu xe phù hợp nhất
+                            );
+
+                    // Thêm vào danh sách gợi ý cho order detail này
+                    detailSuggestions.add(vehicleSuggestionDTO);
+                }
+
+                // Thêm hoặc cập nhật danh sách gợi ý cho order detail này
+                if (!detailSuggestions.isEmpty()) {
+                    suggestionsByDetailId.put(detailId, detailSuggestions);
+                }
+            }
+        }
+
+        return new SimplifiedVehicleAssignmentResponse(suggestionsByDetailId);
+    }
+
+    /**
+     * Tìm thời gian hoạt động gần nhất của mỗi tài xế
+     *
+     * @param driverIds Danh sách ID của tài xế
+     * @return Map chứa thông tin thời gian hoạt động gần nhất ở dạng String
+     */
+    private Map<UUID, String> findLastActiveTimeForDrivers(Set<UUID> driverIds) {
+        Map<UUID, String> result = new HashMap<>();
+
+        if (driverIds.isEmpty()) {
+            return result;
+        }
+
+        for (UUID driverId : driverIds) {
+            Optional<VehicleAssignmentEntity> latestAssignment = entityService.findLatestAssignmentByDriverId(driverId);
+
+            if (latestAssignment.isPresent()) {
+                VehicleAssignmentEntity assignment = latestAssignment.get();
+                LocalDateTime createdAt = assignment.getCreatedAt();
+
+                // Định dạng thời gian hoạt động gần nhất
+                LocalDateTime now = LocalDateTime.now();
+                LocalDate today = LocalDate.now();
+                LocalDate assignmentDate = createdAt.toLocalDate();
+
+                String formattedTime;
+                if (assignmentDate.isEqual(today)) {
+                    formattedTime = "Hôm nay, lúc " + createdAt.getHour() + ":" + String.format("%02d", createdAt.getMinute());
+                } else if (assignmentDate.isEqual(today.minusDays(1))) {
+                    formattedTime = "Hôm qua, lúc " + createdAt.getHour() + ":" + String.format("%02d", createdAt.getMinute());
+                } else {
+                    formattedTime = assignmentDate.getDayOfMonth() + "/" + assignmentDate.getMonthValue() + "/" + assignmentDate.getYear();
+                }
+
+                result.put(driverId, formattedTime);
+            } else {
+                result.put(driverId, "Chưa có hoạt động");
+            }
+        }
+
+        return result;
     }
 
     @Override
@@ -303,6 +488,41 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         return convertToSimplifiedResponse(responses);
     }
 
+    /**
+     * Tính số chuyến đã hoàn thành của mỗi tài xế
+     *
+     * @param driverIds Danh sách ID của tài xế
+     * @return Map chứa số chuyến đã hoàn thành cho mỗi tài xế
+     */
+    private Map<UUID, Integer> countCompletedTripsByDrivers(Set<UUID> driverIds) {
+        Map<UUID, Integer> result = new HashMap<>();
+
+        if (driverIds.isEmpty()) {
+            return result;
+        }
+
+        // Với mỗi tài xế, đếm số chuyến đã hoàn thành
+        // Tài xế có thể là driver1 hoặc driver2 trong vehicle assignment
+        for (UUID driverId : driverIds) {
+            // Đếm số chuyến hoàn thành khi là driver1
+            int tripsAsDriver1 = entityService.countCompletedTripsAsDriver1(driverId);
+
+            // Đếm số chuyến hoàn thành khi là driver2
+            int tripsAsDriver2 = entityService.countCompletedTripsAsDriver2(driverId);
+
+            // Tổng số chuyến hoàn thành
+            result.put(driverId, tripsAsDriver1 + tripsAsDriver2);
+        }
+
+        return result;
+    }
+
+    /**
+     * Sắp xếp xe theo số lần sử dụng trong tháng, xe ít sử dụng được ưu tiên
+     *
+     * @param vehicleIds Danh sách ID xe cần sắp xếp
+     * @return Danh sách ID xe đã sắp xếp theo số lần sử dụng (tăng dần)
+     */
     private List<UUID> sortVehiclesByUsageThisMonth(List<UUID> vehicleIds) {
         if (vehicleIds == null || vehicleIds.isEmpty()) {
             return List.of();
@@ -333,5 +553,4 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 .map(Map.Entry::getKey)
                 .toList();
     }
-
 }

@@ -75,4 +75,56 @@ public class VehicleAssignmentEntityServiceImpl implements VehicleAssignmentEnti
         return vehicleAssignmentRepository.existsByDriver1IdAndStatus(driverId, "ACTIVE") ||
                vehicleAssignmentRepository.existsByDriver2IdAndStatus(driverId, "ACTIVE");
     }
+
+    @Override
+    public int countCompletedTripsAsDriver1(UUID driverId) {
+        return vehicleAssignmentRepository.countCompletedTripsAsDriver1(driverId);
+    }
+
+    @Override
+    public int countCompletedTripsAsDriver2(UUID driverId) {
+        return vehicleAssignmentRepository.countCompletedTripsAsDriver2(driverId);
+    }
+
+    @Override
+    public Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver1Id(UUID driverId) {
+        return vehicleAssignmentRepository.findLatestAssignmentByDriver1Id(driverId);
+    }
+
+    @Override
+    public Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver2Id(UUID driverId) {
+        return vehicleAssignmentRepository.findLatestAssignmentByDriver2Id(driverId);
+    }
+
+    @Override
+    public Optional<VehicleAssignmentEntity> findLatestAssignmentByDriverId(UUID driverId) {
+        // Tìm assignment gần nhất mà tài xế là driver1
+        Optional<VehicleAssignmentEntity> asDriver1 = findLatestAssignmentByDriver1Id(driverId);
+
+        // Tìm assignment gần nhất mà tài xế là driver2
+        Optional<VehicleAssignmentEntity> asDriver2 = findLatestAssignmentByDriver2Id(driverId);
+
+        // Nếu không có assignment nào, trả về empty
+        if (asDriver1.isEmpty() && asDriver2.isEmpty()) {
+            return Optional.empty();
+        }
+
+        // Nếu chỉ có một trong hai, trả về cái đó
+        if (asDriver1.isEmpty()) {
+            return asDriver2;
+        }
+        if (asDriver2.isEmpty()) {
+            return asDriver1;
+        }
+
+        // Nếu cả hai đều có, trả về cái gần nhất
+        VehicleAssignmentEntity assignment1 = asDriver1.get();
+        VehicleAssignmentEntity assignment2 = asDriver2.get();
+
+        if (assignment1.getCreatedAt().isAfter(assignment2.getCreatedAt())) {
+            return asDriver1;
+        } else {
+            return asDriver2;
+        }
+    }
 }

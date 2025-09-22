@@ -16,9 +16,5 @@ public record VehicleAssignmentRequest(
         @NotBlank(message = "driverId_1 is required")  String driverId_1,
         @NotBlank(message = "driverId_2 is required")  String driverId_2,
 
-        String descripton,
-
-        @NotBlank(message = "status is required")
-        @EnumValidator(enumClass = VehicleAssignmentEnum.class, message = "Invalid status for vehicle assignment")
-        String status
+        String descripton
 ) {}

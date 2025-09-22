@@ -25,6 +25,7 @@ public abstract class VehicleAssignmentMapper {
     @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
     @Mapping(target = "driver1", source = "driverId_1", qualifiedByName = "driverFromId")
     @Mapping(target = "driver2", source = "driverId_2", qualifiedByName = "driverFromId")
+    @Mapping(target = "status", constant = "ACTIVE")  // Tự động set status là ACTIVE
     public abstract VehicleAssignmentEntity toEntity(VehicleAssignmentRequest req);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

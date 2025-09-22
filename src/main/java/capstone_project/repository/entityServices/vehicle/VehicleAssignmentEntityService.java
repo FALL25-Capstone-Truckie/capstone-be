@@ -27,4 +27,37 @@ public interface VehicleAssignmentEntityService extends BaseEntityService<Vehicl
                                                         LocalDateTime startOfMonth,
                                                         LocalDateTime endOfMonth);
     boolean existsActiveAssignmentForDriver(UUID driverId);
+    /**
+     * Đếm số chuyến đã hoàn thành mà tài xế là driver1
+     * @param driverId ID của tài xế
+     * @return Số chuyến đã hoàn thành
+     */
+    int countCompletedTripsAsDriver1(UUID driverId);
+    /**
+     * Đếm số chuyến đã hoàn thành mà tài xế là driver2
+     * @param driverId ID của tài xế
+     * @return Số chuyến đã hoàn thành
+     */
+    int countCompletedTripsAsDriver2(UUID driverId);
+
+    /**
+     * Tìm assignment gần nhất của tài xế (driver1)
+     * @param driverId ID của tài xế
+     * @return Assignment gần nhất hoặc empty nếu không tìm thấy
+     */
+    Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver1Id(UUID driverId);
+
+    /**
+     * Tìm assignment gần nhất của tài xế (driver2)
+     * @param driverId ID của tài xế
+     * @return Assignment gần nhất hoặc empty nếu không tìm thấy
+     */
+    Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver2Id(UUID driverId);
+
+    /**
+     * Tìm assignment gần nhất của tài xế (bất kể là driver1 hay driver2)
+     * @param driverId ID của tài xế
+     * @return Assignment gần nhất hoặc empty nếu không tìm thấy
+     */
+    Optional<VehicleAssignmentEntity> findLatestAssignmentByDriverId(UUID driverId);
 }
