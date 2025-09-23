@@ -40,7 +40,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-thymeleaf:3.5.5")
 
-	// DATABASE
+  // DATABASE
 	implementation("org.postgresql:postgresql")
 	implementation("com.azure.spring:spring-cloud-azure-starter:5.22.0")
 
@@ -78,6 +78,8 @@ dependencies {
 
 	// PDF / VIEW
 	implementation("com.itextpdf:itextpdf:5.5.13.4")
+  implementation("com.itextpdf:itext7-core:7.2.5")
+	implementation("com.itextpdf:html2pdf:4.0.5")
 	implementation("org.xhtmlrenderer:flying-saucer-pdf:9.13.3")
 
 	// CLOUD & INTEGRATION
