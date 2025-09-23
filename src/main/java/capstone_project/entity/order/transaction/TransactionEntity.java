@@ -35,7 +35,7 @@ public class TransactionEntity extends BaseEntity {
 
     @Size(max = 255) // Adding a reasonable size constraint
     @Column(name = "gateway_order_code")
-    private String gatewayOrderCode; // Changed from Long to String to match the database VARCHAR type
+    private String gatewayOrderCode;
 
     @Size(max = 20)
     @Column(name = "status", length = 20)
