@@ -4,6 +4,7 @@ import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.utils.PdfUtil;
 import static capstone_project.common.constants.PdfSettingConstants.*;
 import capstone_project.common.exceptions.dto.NotFoundException;
+import capstone_project.dtos.response.order.BillOfLandingPreviewResponse;
 import capstone_project.dtos.response.order.BillOfLandingResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
@@ -34,6 +35,9 @@ import com.itextpdf.layout.Document;
 import com.itextpdf.layout.borders.SolidBorder;
 import com.itextpdf.layout.element.*;
 import com.itextpdf.layout.properties.TextAlignment;
+import java.util.Base64;
+import java.util.stream.Collectors;
+import capstone_project.dtos.response.order.BillOfLandingPreviewResponse;
 import com.itextpdf.layout.properties.UnitValue;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +62,7 @@ import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -121,6 +126,21 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                         .toList())
                 .createdAt(new Date().toString())
                 .build();
+    }
+
+    @Override
+    public List<BillOfLandingPreviewResponse> getBillOfLadingAndCargoManifestsPreview(UUID orderId) {
+        // generate all PDFs (filename -> bytes)
+        Map<String, byte[]> pdfMap = generateBillOfLadingAndCargoManifests(orderId);
+
+        // convert to DTO list with base64 content for frontend preview
+        return pdfMap.entrySet().stream()
+                .map(e -> BillOfLandingPreviewResponse.builder()
+                        .fileName(e.getKey())
+                        .base64Content(e.getValue() != null ? Base64.getEncoder().encodeToString(e.getValue()) : "")
+                        .mimeType("application/pdf")
+                        .build())
+                .collect(Collectors.toList());
     }
 
     @Override
