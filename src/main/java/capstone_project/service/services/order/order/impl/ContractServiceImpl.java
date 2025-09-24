@@ -744,6 +744,11 @@ public class ContractServiceImpl implements ContractService {
 
         // save DB
         ce.setAttachFileUrl(imageUrl);
+        ce.setDescription(req.description());
+        ce.setEffectiveDate(req.effectiveDate());
+        ce.setExpirationDate(req.expirationDate());
+        ce.setSupportedValue(req.supportedValue());
+        ce.setContractName(req.contractName());
 
 
         var updated = contractEntityService.save(ce);
