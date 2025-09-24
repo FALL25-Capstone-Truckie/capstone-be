@@ -8,6 +8,7 @@ import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.common.utils.UserContextUtils;
 import capstone_project.dtos.request.order.ContractRequest;
+import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
@@ -249,6 +250,110 @@ public class ContractServiceImpl implements ContractService {
         return contractMapper.toContractResponse(updatedContract);
     }
 
+    @Override
+    @Transactional
+    public ContractResponse createBothContractAndContractRuleForCus(CreateContractForCusRequest contractRequest) {
+        log.info("Creating new contract");
+
+        if (contractRequest == null) {
+            log.error("[createContract] Request is null");
+            throw new BadRequestException("Contract request must not be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+
+        if (contractRequest.orderId() == null) {
+            log.error("[createContract] Order ID is null in contract request");
+            throw new BadRequestException("Order ID must not be null",
+                    ErrorEnum.NULL.getErrorCode());
+        }
+
+        UUID orderUuid;
+        try {
+            orderUuid = UUID.fromString(contractRequest.orderId());
+        } catch (IllegalArgumentException e) {
+            log.error("[createBoth] Invalid orderId format: {}", contractRequest.orderId());
+            throw e;
+        }
+
+        if (contractEntityService.getContractByOrderId(orderUuid).isPresent()) {
+            log.error("[createBoth] Contract already exists for orderId={}", orderUuid);
+            throw new BadRequestException(ErrorEnum.ALREADY_EXISTED.getMessage(),
+                    ErrorEnum.ALREADY_EXISTED.getErrorCode());
+//            deleteContractByOrderId(orderUuid);
+        }
+
+        OrderEntity order = orderEntityService.findEntityById(orderUuid)
+                .orElseThrow(() -> {
+                    log.error("[createBoth] Order not found: {}", orderUuid);
+                    return new NotFoundException("Order not found", ErrorEnum.NOT_FOUND.getErrorCode());
+                });
+
+        BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
+
+        ContractEntity contractEntity = contractMapper.mapRequestForCusToEntity(contractRequest);
+        contractEntity.setStatus(ContractStatusEnum.CONTRACT_DRAFT.name());
+        contractEntity.setOrderEntity(order);
+
+        ContractEntity savedContract = contractEntityService.save(contractEntity);
+
+        List<ContractRuleAssignResponse> assignments = assignVehicles(orderUuid);
+
+        Map<UUID, Integer> vehicleCountMap = assignments.stream()
+                .collect(Collectors.groupingBy(ContractRuleAssignResponse::getVehicleRuleId, Collectors.summingInt(a -> 1)));
+
+
+        for (Map.Entry<UUID, Integer> entry : vehicleCountMap.entrySet()) {
+            UUID vehicleRuleId = entry.getKey();
+            Integer count = entry.getValue();
+
+            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+                    .orElseThrow(() -> {
+                        log.error("[createBoth] Vehicle rule not found: {}", vehicleRuleId);
+                        return new NotFoundException("Vehicle rule not found", ErrorEnum.NOT_FOUND.getErrorCode());
+                    });
+
+            ContractRuleEntity contractRule = ContractRuleEntity.builder()
+                    .contractEntity(savedContract)
+                    .vehicleRuleEntity(vehicleRule)
+                    .numOfVehicles(count)
+                    .status(CommonStatusEnum.ACTIVE.name())
+                    .build();
+
+            // 🔑 Lấy các orderDetails từ assignments
+            List<OrderDetailForPackingResponse> detailResponses = assignments.stream()
+                    .filter(a -> a.getVehicleRuleId().equals(vehicleRuleId))
+                    .flatMap(a -> a.getAssignedDetails().stream())
+                    .toList();
+
+//            List<OrderDetailForPackingResponse> detailIds = assignments.stream()
+
+
+            if (!detailResponses.isEmpty()) {
+                List<UUID> detailIds = detailResponses.stream()
+                        .map(r -> UUID.fromString(r.id()))
+                        .toList();
+
+                List<OrderDetailEntity> orderDetailEntities = orderDetailEntityService.findAllByIds(detailIds);
+                contractRule.getOrderDetails().addAll(orderDetailEntities);
+            }
+
+            contractRuleEntityService.save(contractRule);
+        }
+        order.setStatus(OrderStatusEnum.CONTRACT_DRAFT.name());
+        orderEntityService.save(order);
+
+        PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
+
+        BigDecimal totalPrice = totalPriceResponse.getTotalPrice();
+
+        UserEntity currentStaff = userContextUtils.getCurrentUser();
+
+        savedContract.setTotalValue(totalPrice);
+        savedContract.setStaff(currentStaff);
+        ContractEntity updatedContract = contractEntityService.save(savedContract);
+
+        return contractMapper.toContractResponse(updatedContract);
+    }
 
     @Override
     public ContractResponse updateContract(UUID id, ContractRequest contractRequest) {

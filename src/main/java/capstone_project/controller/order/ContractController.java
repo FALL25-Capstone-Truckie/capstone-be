@@ -1,6 +1,7 @@
 package capstone_project.controller.order;
 
 import capstone_project.dtos.request.order.ContractRequest;
+import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.request.order.contract.ContractFileUploadRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
@@ -56,6 +57,12 @@ public class ContractController {
     @PostMapping("/both")
     public ResponseEntity<ApiResponse<ContractResponse>> createBothContractAndContractRule(@RequestBody @Valid ContractRequest contractRequest) {
         final var result = contractService.createBothContractAndContractRule(contractRequest);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PostMapping("/both/for-cus")
+    public ResponseEntity<ApiResponse<ContractResponse>> createBothContractAndContractRuleForCus(@RequestBody @Valid CreateContractForCusRequest contractRequest) {
+        final var result = contractService.createBothContractAndContractRuleForCus(contractRequest);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
