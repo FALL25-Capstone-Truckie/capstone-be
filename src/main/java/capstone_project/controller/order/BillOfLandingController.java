@@ -1,6 +1,7 @@
 package capstone_project.controller.order;
 
 import capstone_project.dtos.response.common.ApiResponse;
+import capstone_project.dtos.response.order.BillOfLandingPreviewResponse;
 import capstone_project.dtos.response.order.BillOfLandingResponse;
 import capstone_project.service.services.billOfLanding.BillOfLandingService;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
@@ -34,6 +36,12 @@ public class BillOfLandingController {
     public ResponseEntity<ApiResponse<BillOfLandingResponse>> getAllInformationForBillOfLanding(@PathVariable UUID contractId) {
         final var result = billOfLandingService.getBillOfLandingById(contractId);
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/order/{orderId}/preview")
+    public ResponseEntity<ApiResponse<List<BillOfLandingPreviewResponse>>> previewWaybillsAndManifestsByOrder(@PathVariable UUID orderId) {
+        List<BillOfLandingPreviewResponse> previews = billOfLandingService.getBillOfLadingAndCargoManifestsPreview(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(previews));
     }
 
     @GetMapping("/order/{orderId}/print")
