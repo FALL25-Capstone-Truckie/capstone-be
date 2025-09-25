@@ -24,4 +24,6 @@ public interface AddressService {
     AddressResponse updateAddress(UUID id,AddressRequest request);
 
     AddressResponse getAddressById(UUID id);
+
+    List<AddressResponse> getMyDeliveryAddress();
 }

@@ -59,4 +59,11 @@ public class AddressController {
         final var updatedAddress = addressService.updateAddress(id, addressRequest);
         return ResponseEntity.ok(ApiResponse.ok(updatedAddress));
     }
+
+    // GET /api/addresses/me/delivery
+    @GetMapping("/me/delivery")
+    public ResponseEntity<List<AddressResponse>> getMyDeliveryAddress() {
+        List<AddressResponse> response = addressService.getMyDeliveryAddress();
+        return ResponseEntity.ok(response);
+    }
 }

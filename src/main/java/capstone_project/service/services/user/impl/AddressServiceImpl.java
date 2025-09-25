@@ -335,4 +335,27 @@ public class AddressServiceImpl implements AddressService {
             }
         }
     }
+
+    @Override
+    public List<AddressResponse> getMyDeliveryAddress() {
+        UUID customerId = userContextUtils.getCurrentCustomerId();
+        log.info("Fetching delivery addresses for current customer: {}", customerId);
+
+        List<AddressEntity> entities = addressEntityService.getAddressesByCustomerId(customerId);
+
+        List<AddressResponse> responses = entities.stream()
+                .filter(e -> Boolean.FALSE.equals(e.getAddressType()))
+                .map(this::safeMapToResponse)
+                .toList();
+
+        if (responses.isEmpty()) {
+            log.warn("Delivery addresses (addressType=false) not found for customer: {}", customerId);
+            throw new NotFoundException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+            );
+        }
+
+        return responses;
+    }
 }
