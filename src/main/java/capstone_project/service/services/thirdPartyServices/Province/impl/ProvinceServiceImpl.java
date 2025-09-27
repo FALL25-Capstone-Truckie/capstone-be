@@ -3,7 +3,11 @@ package capstone_project.service.services.thirdPartyServices.Province.impl;
 import capstone_project.dtos.response.province.ProvinceResponse;
 import capstone_project.service.services.thirdPartyServices.Province.ProvinceService;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.ResponseEntity;
@@ -22,17 +26,22 @@ public class ProvinceServiceImpl implements ProvinceService {
     private static final Logger LOGGER = Logger.getLogger(ProvinceServiceImpl.class.getName());
     private final String baseUrl;
     private final RestTemplate restTemplate;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper;
 
-    // simple in-memory cache
     private volatile List<ProvinceResponse> cache = Collections.emptyList();
     private volatile Instant cacheTime = Instant.EPOCH;
     private final Duration ttl = Duration.ofHours(24);
 
     public ProvinceServiceImpl(RestTemplateBuilder builder,
-                                @Value("${province.api.base-url}") String baseUrl) {
+                               @Value("${province.api.base-url}") String baseUrl,
+                               ObjectMapper springMapper) {
         this.restTemplate = builder.build();
-        this.baseUrl = baseUrl != null ? baseUrl : "";
+        this.baseUrl = (baseUrl != null) ? baseUrl : "";
+        this.mapper = springMapper.copy()
+                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        this.mapper.configOverride(List.class)
+                .setSetterInfo(JsonSetter.Value.forValueNulls(Nulls.AS_EMPTY));
     }
 
     @Override
@@ -47,14 +56,38 @@ public class ProvinceServiceImpl implements ProvinceService {
                 return cache;
             }
             try {
-                ResponseEntity<String> resp = restTemplate.getForEntity(baseUrl, String.class);
+                // ensure the third-party API returns nested districts/wards
+                String url = buildUrlWithDepth(baseUrl, 2);
+                ResponseEntity<String> resp = restTemplate.getForEntity(url, String.class);
+
                 if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
-                    List<ProvinceResponse> list = mapper.readValue(resp.getBody(), new TypeReference<List<ProvinceResponse>>() {});
+                    String body = resp.getBody();
+
+                    // optional: log raw JSON length / snippet to confirm nested structure
+                    LOGGER.log(Level.INFO, "Fetched provinces JSON length={0}", body.length());
+                    if (body.length() < 1024) {
+                        LOGGER.log(Level.FINE, "Raw provinces JSON: {0}", body);
+                    } else {
+                        LOGGER.log(Level.FINE, "Raw provinces JSON starts with: {0}", body.substring(0, 512));
+                    }
+
+                    List<ProvinceResponse> list = mapper.readValue(body, new TypeReference<List<ProvinceResponse>>() {});
                     cache = list;
                     cacheTime = Instant.now();
+
+                    if (!cache.isEmpty()) {
+                        ProvinceResponse p = cache.get(0);
+                        int districtsSize = (p.getDistricts() == null) ? -1 : p.getDistricts().size();
+                        LOGGER.log(Level.INFO, "Mapped province: {0}, districts count: {1}", new Object[]{p.getName(), districtsSize});
+                        if (districtsSize > 0) {
+                            LOGGER.log(Level.FINE, "First district sample: {0}", p.getDistricts().get(0).getName());
+                        }
+                    }
+
                     return cache;
                 } else {
                     LOGGER.log(Level.WARNING, "Third-party API returned non-OK: {0}", resp.getStatusCode());
+                    LOGGER.log(Level.WARNING, "Response body: {0}", resp.getBody());
                 }
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error fetching provinces from third-party API", e);
@@ -63,7 +96,17 @@ public class ProvinceServiceImpl implements ProvinceService {
         }
     }
 
-    // optional helper to force refresh
+    private String buildUrlWithDepth(String base, int depth) {
+        if (base == null || base.isEmpty()) return base;
+        String param = "depth=" + depth;
+        if (base.contains("?")) {
+            if (base.endsWith("?") || base.endsWith("&")) return base + param;
+            return base + "&" + param;
+        } else {
+            return base + "?" + param;
+        }
+    }
+
     public void refreshCache() {
         synchronized (this) {
             cacheTime = Instant.EPOCH;

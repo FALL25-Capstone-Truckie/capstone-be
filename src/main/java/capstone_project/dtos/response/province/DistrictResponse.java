@@ -1,6 +1,8 @@
 package capstone_project.dtos.response.province;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -19,5 +21,7 @@ public class DistrictResponse {
     @JsonProperty("province_code")
     private Integer provinceCode;
 
+    @JsonProperty("wards")
+    @JsonSetter(nulls = Nulls.AS_EMPTY)
     private List<WardResponse> wards;
 }
