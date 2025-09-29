@@ -23,6 +23,7 @@ public class ContractRuleAssignResponse {
     private BigDecimal currentLoad;
     //    private List<UUID> assignedDetails = new ArrayList<>();
     private List<OrderDetailForPackingResponse> assignedDetails = new ArrayList<>();
+    List<PackedDetailResponse> packedDetailDetails;
 
 }
 
