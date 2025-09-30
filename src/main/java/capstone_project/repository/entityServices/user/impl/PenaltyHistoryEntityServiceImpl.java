@@ -19,4 +19,14 @@ public class PenaltyHistoryEntityServiceImpl
     @Override public PenaltyHistoryEntity save(PenaltyHistoryEntity e){return repository.save(e);}
     @Override public Optional<PenaltyHistoryEntity> findEntityById(UUID id){return repository.findById(id);}
     @Override public List<PenaltyHistoryEntity> findAll(){return repository.findAll();}
+
+    @Override
+    public List<PenaltyHistoryEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        return repository.findByVehicleAssignmentId(vehicleAssignmentId);
+    }
+
+    @Override
+    public List<PenaltyHistoryEntity> findByDriverId(UUID driverId) {
+        return repository.findByDriverId(driverId);
+    }
 }

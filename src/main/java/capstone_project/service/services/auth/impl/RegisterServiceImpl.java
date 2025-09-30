@@ -31,6 +31,9 @@ import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.mapper.user.UserMapper;
 import capstone_project.service.services.auth.RegisterService;
 import capstone_project.service.services.email.EmailProtocolService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,8 +44,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 
 @Service
@@ -64,6 +69,7 @@ public class RegisterServiceImpl implements RegisterService {
     private final DriverMapper driverMapper;
 
     private static final String NO_PASSWORD = "NO_PASSWORD";
+    private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
     private static final String TOKEN_TYPE = "Bearer";
 
     // just only for register staff
@@ -431,8 +437,8 @@ public class RegisterServiceImpl implements RegisterService {
     }
 
     @Override
-    public RefreshTokenResponse refreshAccessToken(RefreshTokenRequest refreshTokenRequest) {
-        RefreshTokenEntity tokenEntity = refreshTokenEntityService.findByToken(refreshTokenRequest.getRefreshToken())
+    public RefreshTokenResponse refreshAccessToken(String refreshToken) {
+        RefreshTokenEntity tokenEntity = refreshTokenEntityService.findByToken(refreshToken)
                 .orElseThrow(() -> new RuntimeException("Refresh token not found"));
 
         LocalDateTime now = LocalDateTime.now();
@@ -450,7 +456,29 @@ public class RegisterServiceImpl implements RegisterService {
 
         String newAccessToken = JWTUtil.generateToken(user);
 
-        return new RefreshTokenResponse(newAccessToken, refreshTokenRequest.getRefreshToken());
+        return new RefreshTokenResponse(newAccessToken);
+    }
+
+    @Override
+    public String extractRefreshTokenFromCookies(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            Optional<Cookie> refreshTokenCookie = Arrays.stream(cookies)
+                    .filter(c -> "refreshToken".equals(c.getName()))
+                    .findFirst();
+
+            if (refreshTokenCookie.isPresent()) {
+                return refreshTokenCookie.get().getValue();
+            }
+        }
+
+        throw new RuntimeException("Refresh token not found in cookies");
+    }
+
+    @Override
+    @Deprecated
+    public RefreshTokenResponse refreshAccessToken(RefreshTokenRequest refreshTokenRequest) {
+        return refreshAccessToken(refreshTokenRequest.getRefreshToken());
     }
 
     @Override
@@ -567,6 +595,15 @@ public class RegisterServiceImpl implements RegisterService {
         }
     }
 
+    @Override
+    public void addRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true); // For HTTPS
+        cookie.setPath("/");
+        cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days, should match your token expiration
+        response.addCookie(cookie);
+    }
 
     public String generateOtp() {
         return String.format("%06d", new Random().nextInt(999999));

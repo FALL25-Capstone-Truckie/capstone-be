@@ -10,6 +10,8 @@ import capstone_project.dtos.response.auth.RefreshTokenResponse;
 import capstone_project.dtos.response.auth.UserResponse;
 import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.dtos.response.user.DriverResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * The interface Registers service.
@@ -37,7 +39,33 @@ public interface RegisterService {
 
     LoginResponse loginWithGoogle(RegisterUserRequest registerUserRequest);
 
+    /**
+     * Refresh access token using the refresh token from the request body
+     *
+     * @param refreshTokenRequest the refresh token request
+     * @return the refresh token response
+     * @deprecated Use {@link #refreshAccessToken(String)} instead
+     */
+    @Deprecated
     RefreshTokenResponse refreshAccessToken(RefreshTokenRequest refreshTokenRequest);
+
+    /**
+     * Refresh access token using the refresh token string
+     *
+     * @param refreshToken the refresh token string
+     * @return the refresh token response
+     */
+    RefreshTokenResponse refreshAccessToken(String refreshToken);
+
+    /**
+     * Extract refresh token from the request cookies
+     *
+     * @param request the HTTP request containing cookies
+     * @return the extracted refresh token
+     */
+    String extractRefreshTokenFromCookies(HttpServletRequest request);
+
+    void addRefreshTokenCookie(HttpServletResponse response, String refreshToken);
 
     String generateOtp();
 

@@ -1,11 +1,13 @@
 package capstone_project.service.auth;
 
 import capstone_project.common.utils.JWTUtil;
+import capstone_project.config.security.SecurityConfigurer;
 import capstone_project.dtos.response.common.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -14,9 +16,11 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * The type Jwt request filter.
@@ -26,19 +30,42 @@ import java.io.IOException;
 public class JwtRequestFilter extends OncePerRequestFilter {
 
     private final AuthUserService authUserService;
+    private static final String ACCESS_TOKEN_COOKIE_NAME = "accessToken";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+
+        String path = request.getRequestURI();
+
+        if (isPublicEndpoint(path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         final String authorizationHeader = request.getHeader("Authorization");
 
         String username = null;
         String jwt = null;
 
         try {
+            // First try to get token from Authorization header
             if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
                 jwt = authorizationHeader.substring(7);
-                username = JWTUtil.extractUsername(jwt); // <-- có thể ném ExpiredJwtException tại đây
+                username = JWTUtil.extractUsername(jwt);
+            }
+
+            // If not found in header, try to get from cookies
+            if (username == null && request.getCookies() != null) {
+                Cookie accessTokenCookie = Arrays.stream(request.getCookies())
+                        .filter(cookie -> ACCESS_TOKEN_COOKIE_NAME.equals(cookie.getName()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (accessTokenCookie != null) {
+                    jwt = accessTokenCookie.getValue();
+                    username = JWTUtil.extractUsername(jwt);
+                }
             }
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -67,6 +94,11 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         response.getWriter().write(new ObjectMapper().writeValueAsString(
                 ApiResponse.fail(message, status)
         ));
+    }
+
+    private boolean isPublicEndpoint(String path) {
+        return Arrays.stream(SecurityConfigurer.PUBLIC_ENDPOINTS)
+                .anyMatch(pattern -> new AntPathMatcher().match(pattern, path));
     }
 
 }

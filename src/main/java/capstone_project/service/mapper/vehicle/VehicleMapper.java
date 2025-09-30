@@ -13,10 +13,12 @@ import org.mapstruct.*;
 public interface VehicleMapper {
 
     @Mapping(source = "vehicleTypeEntity.id", target = "vehicleTypeId")
-    VehicleResponse toVehicleResponse(VehicleEntity entity);
+    VehicleResponse toResponse(VehicleEntity entity);
 
     @Mapping(source = "vehicleTypeEntity.id", target = "vehicleTypeResponse.id")
     VehicleGetDetailsResponse toVehicleDetailResponse(VehicleEntity entity);
+
+    GetVehicleResponseForBillOfLandingResponse toGetVehicleResponseForBillOfLanding(VehicleEntity entity);
 
 
     // Add these methods to handle nested object mapping

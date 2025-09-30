@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface UserRepository extends BaseRepository<UserEntity> {
     /**
@@ -45,4 +46,19 @@ public interface UserRepository extends BaseRepository<UserEntity> {
     List<UserEntity> findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(String username, String email);
 
     List<UserEntity> findUserEntitiesByRoleRoleName(String roleName);
+
+    List<UserEntity> findAllByIdIn(List<UUID> ids);
+
+    @Query(value = """
+            SELECT o.status, COUNT(*)
+            FROM users o
+            group by o.status;
+            """, nativeQuery = true)
+    List<Object[]> countAllByUserStatus();
+
+    @Query(value = """
+            SELECT COUNT(*)
+            FROM users o
+            """, nativeQuery = true)
+    int countAllUsers();
 }

@@ -110,6 +110,22 @@ public class SecurityConfigurer {
     @Value("${driver.api.base-path}")
     private String driverApiBasePath;
 
+    @Value("${room.api.base-path}")
+    private String roomApiBasePath;
+
+    @Value("${chat.api.base-path}")
+    private String chatApiBasePath;
+
+    @Value("${seal.api.base-path}")
+    private String sealApiBasePath;
+
+    @Value("${order-detail-seal.api.base-path}")
+    private String orderDetailSealApiBasePath;
+
+    @Value("${notification.api.base-path}")
+    private String notificationApiBasePath;
+
+
 //    @Value("${system-setting.api.base-path}")
 //    private String systemSettingApiBasePath;
 
@@ -133,15 +149,19 @@ public class SecurityConfigurer {
                     "/api/loading/**",
                     "/api/v1/address/**",
                     "/api/v1/emails/**",
+                    "/api/v1/notifications/**",
+                    "/api/v1/transactions/stripe/webhook/**",
                     "/api/webhooks/**",
-                    "/api/v1/transactions/callback/**",
-                    "/api/v1/transactions/cancel/**",
+                    "/api/v1/transactions/pay-os/webhooks/**",
+                    "/api/v1/transactions/pay-os/callback/**",
+                    "/api/v1/transactions/pay-os/cancel/**",
                     "/app/**",
                     "/topic/**",
                     "/actuator/**",
                     "/actuator/health",
                     "/actuator/info",
-                    "/error"
+                    "/error",
+                    "/chat/**"
             ),
             Arrays.stream(SWAGGER_ENDPOINTS)
     ).toArray(String[]::new);
@@ -192,8 +212,8 @@ public class SecurityConfigurer {
                         // ================= CONTRACT =================
                         .requestMatchers(HttpMethod.GET, contractApiBasePath + "/**").authenticated()
                         .requestMatchers(HttpMethod.GET, contractRuleApiBasePath + "/**").authenticated()
-                        .requestMatchers(contractApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(contractRuleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+                        .requestMatchers(contractApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(), RoleTypeEnum.CUSTOMER.name(), RoleTypeEnum.STAFF.name())
 
                         // ================= PENALTY =================
                         .requestMatchers(HttpMethod.GET, penaltyApiBasePath + "/**").authenticated()
@@ -232,9 +252,20 @@ public class SecurityConfigurer {
                         .requestMatchers(managerApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(roleApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
 
+                        // ================= ROOM & CHAT =================
+                        .requestMatchers(roomApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
+                        .requestMatchers(chatApiBasePath + "/**").hasAnyAuthority("CUSTOMER","ADMIN","STAFF","DRIVER")
                         // ================= SETTING =================
                         .requestMatchers(contractSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
                         .requestMatchers(weightUnitSettingApiBasePath + "/**").hasAuthority(RoleTypeEnum.ADMIN.name())
+
+                        // ================= SEAL =================
+                        .requestMatchers(sealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
+                        .requestMatchers(orderDetailSealApiBasePath + "/**").hasAnyAuthority(RoleTypeEnum.ADMIN.name(),RoleTypeEnum.DRIVER.name(),RoleTypeEnum.STAFF.name())
+
+                        // ================= TRACKASIA-PROXY =================
+                        .requestMatchers("/api/trackasia/**").permitAll() // allow all TrackAsia proxy requests
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())

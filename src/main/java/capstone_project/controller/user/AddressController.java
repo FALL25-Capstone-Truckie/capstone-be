@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("${address.api.base-path}")
+@RequestMapping("${address.api.base-path}es")
 @RequiredArgsConstructor
 @PreAuthorize("isAuthenticated()")
 public class AddressController {
@@ -39,6 +39,12 @@ public class AddressController {
         return ResponseEntity.ok(ApiResponse.ok(addresses));
     }
 
+    @GetMapping("/get-my-addresses")
+    public ResponseEntity<ApiResponse<List<AddressResponse>>> getMyAddresses() {
+        final var addresses = addressService.getMyAddresses();
+        return ResponseEntity.ok(ApiResponse.ok(addresses));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<AddressResponse>> getAddressById(@PathVariable UUID id) {
         final var address = addressService.getAddressById(id);
@@ -52,5 +58,12 @@ public class AddressController {
             @RequestBody @Valid AddressRequest addressRequest) {
         final var updatedAddress = addressService.updateAddress(id, addressRequest);
         return ResponseEntity.ok(ApiResponse.ok(updatedAddress));
+    }
+
+    // GET /api/addresses/me/delivery
+    @GetMapping("/me/delivery")
+    public ResponseEntity<List<AddressResponse>> getMyDeliveryAddress() {
+        List<AddressResponse> response = addressService.getMyDeliveryAddress();
+        return ResponseEntity.ok(response);
     }
 }

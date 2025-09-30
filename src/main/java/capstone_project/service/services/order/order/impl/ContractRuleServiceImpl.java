@@ -8,6 +8,7 @@ import capstone_project.dtos.request.order.ContractRuleRequest;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.order.contract.ContractRuleResponse;
+import capstone_project.dtos.response.order.contract.OrderDetailForPackingResponse;
 import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.contract.ContractRuleEntity;
@@ -17,12 +18,16 @@ import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.pricing.VehicleRuleEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractRuleEntityService;
+import capstone_project.repository.entityServices.order.order.CategoryPricingDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
+import capstone_project.repository.entityServices.pricing.BasingPriceEntityService;
+import capstone_project.repository.entityServices.pricing.DistanceRuleEntityService;
 import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
 import capstone_project.service.mapper.order.ContractRuleMapper;
 import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;
+import capstone_project.service.services.user.DistanceService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +49,10 @@ public class ContractRuleServiceImpl implements ContractRuleService {
     private final VehicleRuleEntityService vehicleRuleEntityService;
     private final ContractService contractService;
     private final OrderEntityService orderEntityService;
+    private final DistanceService distanceService;
+    private final DistanceRuleEntityService distanceRuleEntityService;
+    private final BasingPriceEntityService basingPriceEntityService;
+    private final CategoryPricingDetailEntityService categoryPricingDetailEntityService;
 
     @Override
     public List<ContractRuleResponse> getContracts() {
@@ -109,8 +118,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                     .filter(Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            List<UUID> detailIds = rule.getOrderDetails().stream()
-                    .map(OrderDetailEntity::getId)
+            List<OrderDetailForPackingResponse> detailResponses = rule.getOrderDetails().stream()
+                    .map(this::toPackingResponse)
                     .toList();
 
             responses.add(
@@ -119,7 +128,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                             .vehicleRuleId(rule.getVehicleRuleEntity().getId())
                             .vehicleRuleName(rule.getVehicleRuleEntity().getVehicleRuleName())
                             .currentLoad(currentLoad)
-                            .assignedDetails(detailIds)
+                            .assignedDetails(detailResponses)
                             .build()
             );
         }
@@ -129,6 +138,16 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                 .unassignedDetails(unassignedDetails)
                 .build();
 
+    }
+
+    private OrderDetailForPackingResponse toPackingResponse(OrderDetailEntity entity) {
+        return new OrderDetailForPackingResponse(
+                entity.getId().toString(),
+                entity.getWeight(),
+                entity.getWeightBaseUnit(),
+                entity.getUnit(),
+                entity.getTrackingCode()
+        );
     }
 
     @Override
@@ -217,7 +236,8 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
             for (int v = 0; v < numOfVehicles; v++) {
                 BigDecimal currentLoad = BigDecimal.ZERO;
-                List<UUID> assignedDetails = new ArrayList<>();
+//                List<UUID> assignedDetails = new ArrayList<>();
+                List<OrderDetailForPackingResponse> assignedDetails = new ArrayList<>();
 
                 ContractRuleEntity contractRule = new ContractRuleEntity();
                 contractRule.setContractEntity(contractEntity);
@@ -244,7 +264,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
                     if (canFit) {
                         currentLoad = currentLoad.add(detail.getWeight());
-                        assignedDetails.add(detail.getId());
+                        assignedDetails.add(toPackingResponse(detail));
                         newlyAssigned.add(detail.getId());
                         contractRule.getOrderDetails().add(detail);
                     }
@@ -268,14 +288,15 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         Set<UUID> allAssigned = new HashSet<>(alreadyAssigned);
         allAssigned.addAll(newlyAssigned);
 
-        List<UUID> stillUnassigned = orderDetails.stream()
-                .map(OrderDetailEntity::getId)
-                .filter(id -> !allAssigned.contains(id))
+        List<OrderDetailForPackingResponse> stillUnassigned = orderDetails.stream()
+                .filter(d -> !allAssigned.contains(d.getId()))
+                .map(this::toPackingResponse)
                 .toList();
 
         if (!stillUnassigned.isEmpty()) {
             log.warn("Assignment incomplete: {} orderDetails still unassigned -> {}",
-                    stillUnassigned.size(), stillUnassigned);
+                    stillUnassigned.size(),
+                    stillUnassigned.stream().map(OrderDetailForPackingResponse::id).toList());
         } else {
             log.info("All orderDetails assigned successfully!");
         }
@@ -286,8 +307,9 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         OrderEntity order = contractEntity.getOrderEntity();
 
         PriceCalculationResponse newTotal = contractService.calculateTotalPrice(contractEntity,
-                contractService.calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress()),
+                distanceService.getDistanceInKilometers(order.getId()),
                 vehicleCountMap);
+
 
         BigDecimal newTotalValue = newTotal.getTotalPrice();
 
@@ -296,7 +318,11 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         return ListContractRuleAssignResult.builder()
                 .vehicleAssignments(responses)
-                .unassignedDetails(stillUnassigned)
+                .unassignedDetails(
+                        stillUnassigned.stream()
+                                .map(r -> UUID.fromString(r.id()))
+                                .toList()
+                )
                 .build();
     }
 
@@ -376,17 +402,14 @@ public class ContractRuleServiceImpl implements ContractRuleService {
             );
         }
 
-        // update contractRule từ request (map primitive fields)
         contractRuleMapper.toContractRuleEntity(contractRuleRequest, existingContractRule);
 
-        // set lại quan hệ
         existingContractRule.setVehicleRuleEntity(vehicleRule);
         existingContractRule.getOrderDetails().clear();
         existingContractRule.getOrderDetails().addAll(assignedDetails);
 
         ContractRuleEntity saved = contractRuleEntityService.save(existingContractRule);
 
-        // update lại tổng giá trị contract
         Map<UUID, Integer> vehicleCountMap = contractRuleEntityService
                 .findContractRuleEntityByContractEntityId(contractEntity.getId())
                 .stream()
@@ -395,7 +418,7 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         OrderEntity order = contractEntity.getOrderEntity();
         PriceCalculationResponse newTotalResponse = contractService.calculateTotalPrice(
                 contractEntity,
-                contractService.calculateDistanceKm(order.getPickupAddress(), order.getDeliveryAddress()),
+                distanceService.getDistanceInKilometers(order.getId()),
                 vehicleCountMap
         );
 
@@ -407,6 +430,46 @@ public class ContractRuleServiceImpl implements ContractRuleService {
         log.info("Updated contractRule {} with {} assigned details", saved.getId(), saved.getOrderDetails().size());
 
         return contractRuleMapper.toContractRuleResponse(saved);
+    }
+
+    @Override
+    public PriceCalculationResponse calculatePriceAPI(UUID contractId) {
+        log.info("Calculating price for contract ID: {}", contractId);
+
+        ContractEntity contract = contractEntityService.findEntityById(contractId)
+                .orElseThrow(() -> new IllegalArgumentException("Contract not found: " + contractId));
+
+        OrderEntity order = contract.getOrderEntity();
+        if (order == null) {
+            throw new BadRequestException("Contract has no associated order", ErrorEnum.INVALID.getErrorCode());
+        }
+
+        List<ContractRuleAssignResponse> assignResult = contractService.assignVehiclesWithAvailability(order.getId());
+
+
+        log.info("Assignments total: {}", assignResult.size());
+        assignResult.forEach(a ->
+                log.info("Assignment => ruleId={}, ruleName={}, index={}, load={}",
+                        a.getVehicleRuleId(), a.getVehicleRuleName(), a.getVehicleIndex(), a.getCurrentLoad())
+        );
+
+        Map<UUID, Integer> vehicleCountMap = assignResult.stream()
+                .collect(Collectors.groupingBy(
+                        ContractRuleAssignResponse::getVehicleRuleId,
+                        Collectors.summingInt(a -> 1)
+                ));
+
+        log.info("VehicleCountMap: {}", vehicleCountMap);
+
+        BigDecimal distanceKm = distanceService.getDistanceInKilometers(order.getId());
+
+        PriceCalculationResponse priceResponse =
+                contractService.calculateTotalPrice(contract, distanceKm, vehicleCountMap);
+
+        log.info("Calculated price for contract {}: Total = {}, Distance = {} km",
+                contractId, priceResponse.getTotalPrice(), distanceKm);
+
+        return priceResponse;
     }
 
     @Override
@@ -423,11 +486,9 @@ public class ContractRuleServiceImpl implements ContractRuleService {
                     );
                 });
 
-        // Xoá quan hệ trong bảng phụ (order_details liên kết với contract_rule này)
         contractRule.getOrderDetails().clear();
         contractRuleEntityService.save(contractRule);
 
-        // Xoá contract_rule
         contractRuleEntityService.deleteById(id);
 
         log.info("Deleted contract rule with ID {}", id);
@@ -443,14 +504,16 @@ public class ContractRuleServiceImpl implements ContractRuleService {
 
         if (contractRules.isEmpty()) {
             log.warn("No contract rules found for contract ID {}", contractId);
-            return;
+            throw new NotFoundException(
+                    ErrorEnum.NOT_FOUND.getMessage(),
+                    ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
         for (ContractRuleEntity contractRule : contractRules) {
             contractRule.getOrderDetails().clear();
-            contractRuleEntityService.save(contractRule);
         }
 
+        contractRuleEntityService.saveAll(contractRules);
         contractRuleEntityService.deleteByContractEntityId(contractId);
 
         log.info("Deleted all contract rules for contract ID {}", contractId);

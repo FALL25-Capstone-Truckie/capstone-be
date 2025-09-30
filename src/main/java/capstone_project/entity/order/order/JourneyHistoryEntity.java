@@ -1,6 +1,7 @@
 package capstone_project.entity.order.order;
 
 import capstone_project.entity.common.BaseEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -39,9 +40,24 @@ public class JourneyHistoryEntity extends BaseEntity {
 
     @Column(name = "is_reported_incident")
     private Boolean isReportedIncident;
+    
+    @Column(name = "is_route_changed")
+    private Boolean isRouteChanged;
+    
+    @Column(name = "route_change_reason", length = 500)
+    private String routeChangeReason;
+    
+    @Column(name = "original_route_json", length = Integer.MAX_VALUE)
+    private String originalRouteJson;
+    
+    @Column(name = "current_route_json", length = Integer.MAX_VALUE)
+    private String currentRouteJson;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "previous_journey_id")
+    private JourneyHistoryEntity previousJourney;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id")
-    private OrderEntity orderEntity;
-
+    @JoinColumn(name = "vehicle_assignment_id")
+    private VehicleAssignmentEntity vehicleAssignmentEntity;
 }

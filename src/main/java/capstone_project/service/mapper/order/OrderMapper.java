@@ -1,8 +1,8 @@
 package capstone_project.service.mapper.order;
 
-import capstone_project.dtos.response.order.CreateOrderResponse;
-import capstone_project.dtos.response.order.GetOrderResponse;
+import capstone_project.dtos.response.order.*;
 import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.entity.user.address.AddressEntity;
 import org.mapstruct.*;
 
 import java.util.List;
@@ -20,6 +20,33 @@ public interface OrderMapper {
 
     @Mapping(source = "orderDetailEntities", target = "orderDetails")
     GetOrderResponse toGetOrderResponse(OrderEntity entity);
+
+    @Mapping(source = "pickupAddress.id", target = "pickupAddressId")
+    @Mapping(source = "category.id", target = "categoryId")
+    GetOrderForGetAllResponse toGetOrderForGetAllResponse(OrderEntity entity);
+
+    GetOrderForDriverResponse toGetOrderForDriverResponse(OrderEntity entity);
+
+    List<GetOrderForGetAllResponse> toGetOrderForGetAllResponses(List<OrderEntity> orderEntities);
+
+    GetOrderByJpaResponse toGetOrderByJpaResponse(OrderEntity entity);
+
+    @Mapping(target = "pickupAddress", expression = "java(formatAddress(entity.getPickupAddress()))")
+    @Mapping(target = "deliveryAddress", expression = "java(formatAddress(entity.getDeliveryAddress()))")
+    @Mapping(source = "deliveryAddress.id", target = "deliveryAddressId")
+    OrderForCustomerListResponse toOrderForCustomerListResponse(OrderEntity entity);
+
+    List<OrderForCustomerListResponse> toOrderForCustomerListResponses(List<OrderEntity> orderEntities);
+
+    default String formatAddress(AddressEntity address) {
+        if (address == null) {
+            return "";
+        }
+        return String.format("%s, %s, %s",
+                address.getStreet(),
+                address.getWard(),
+                address.getProvince());
+    }
 
 //    @Mapping(source = "deliveryAddress.id", target = "deliveryAddressId")
 //    @Mapping(source = "pickupAddress.id", target = "pickupAddressId")

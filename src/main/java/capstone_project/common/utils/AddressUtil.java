@@ -15,10 +15,16 @@ public class AddressUtil {
     private static final BigDecimal DEFAULT_LONGITUDE = new BigDecimal("105.8542");
 
     public static String buildFullAddress(AddressRequest request) {
-        return String.join(ADDRESS_SEPARATOR,
-                Optional.ofNullable(request.street()).orElse(""),
-                Optional.ofNullable(request.ward()).orElse(""),
-                Optional.ofNullable(request.province()).orElse(""));
+        String street = Optional.ofNullable(request.street()).orElse("").trim();
+        String ward = Optional.ofNullable(request.ward()).orElse("").trim();
+        String province = Optional.ofNullable(request.province()).orElse("").trim();
+
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        if (!street.isEmpty()) parts.add(street);
+        if (!ward.isEmpty()) parts.add(ward + " ward");
+        if (!province.isEmpty()) parts.add(province + " city");
+
+        return String.join(ADDRESS_SEPARATOR, parts);
     }
 
     public static AddressResponse buildResponseFromGeocoding(GeocodingResponse response) {
@@ -27,7 +33,7 @@ public class AddressUtil {
                 response.province(),
                 response.ward(),
                 response.street(),
-                null,
+                null, // addressType
                 response.latitude(),
                 response.longitude(),
                 null
@@ -40,13 +46,20 @@ public class AddressUtil {
         String ward = parts.length > 1 ? parts[1].trim() : "";
         String province = parts.length > 2 ? parts[2].trim() : "";
 
-        return new AddressResponse(null, province, ward, street, null,
-                DEFAULT_LATITUDE, DEFAULT_LONGITUDE, null);
+        return new AddressResponse(
+                null,
+                province,
+                ward,
+                street,
+                null, // addressType
+                DEFAULT_LATITUDE,
+                DEFAULT_LONGITUDE,
+                null
+        );
     }
 
     public static void setCoordinatesOnEntity(AddressEntity entity, BigDecimal latitude, BigDecimal longitude) {
         entity.setLatitude(latitude);
         entity.setLongitude(longitude);
-
     }
 }

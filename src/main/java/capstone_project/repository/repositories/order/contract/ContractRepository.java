@@ -7,5 +7,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ContractRepository extends BaseRepository<ContractEntity> {
-    Optional<ContractEntity> getContractByOrderEntityId(UUID orderId);
+    Optional<ContractEntity> findContractEntityByOrderEntity_Id(UUID orderEntityId);
+
+    void deleteByOrderEntityId(UUID orderId);
+
 }

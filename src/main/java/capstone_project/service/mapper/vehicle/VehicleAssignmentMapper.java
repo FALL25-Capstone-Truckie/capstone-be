@@ -4,6 +4,7 @@ import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
 import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
+import capstone_project.dtos.response.vehicle.GetVehicleAssignmentForBillOfLandingResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -22,7 +23,9 @@ public abstract class VehicleAssignmentMapper {
     @Autowired protected DriverEntityService   driverService;
 
     @Mapping(target = "vehicleEntity", source = "vehicleId", qualifiedByName = "vehicleFromId")
-    @Mapping(target = "driver1", source = "driverId", qualifiedByName = "driverFromId")
+    @Mapping(target = "driver1", source = "driverId_1", qualifiedByName = "driverFromId")
+    @Mapping(target = "driver2", source = "driverId_2", qualifiedByName = "driverFromId")
+    @Mapping(target = "status", constant = "ACTIVE")  // Tự động set status là ACTIVE
     public abstract VehicleAssignmentEntity toEntity(VehicleAssignmentRequest req);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -35,6 +38,8 @@ public abstract class VehicleAssignmentMapper {
     @Mapping(target = "driver_id_1",  source = "driver1.id")
     @Mapping(target = "driver_id_2",  source = "driver2.id")
     public abstract VehicleAssignmentResponse toResponse(VehicleAssignmentEntity entity);
+
+    public abstract GetVehicleAssignmentForBillOfLandingResponse toGetVehicleAssignmentForBillOfLandingResponse(VehicleAssignmentEntity entity);
 
     /* helpers */
     @Named("vehicleFromId")

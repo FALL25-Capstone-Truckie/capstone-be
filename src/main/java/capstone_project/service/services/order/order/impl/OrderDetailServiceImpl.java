@@ -3,16 +3,18 @@ package capstone_project.service.services.order.order.impl;
 import capstone_project.common.enums.CommonStatusEnum;
 import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.OrderStatusEnum;
-import capstone_project.common.enums.VehicleAssignmentStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderDetailRequest;
+import capstone_project.dtos.request.vehicle.CreateAndAssignForDetailsRequest;
+import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
 import capstone_project.dtos.response.order.CreateOrderResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
 import capstone_project.dtos.response.order.GetOrderDetailsResponseForList;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
+import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
@@ -26,7 +28,6 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.order.order.OrderSizeEntityService;
 import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
-import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
 import capstone_project.service.mapper.order.OrderMapper;
@@ -34,12 +35,13 @@ import capstone_project.service.services.order.order.ContractRuleService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderDetailService;
 import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.vehicle.VehicleAssignmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.*;
 
 @Service
@@ -51,10 +53,10 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     private final OrderSizeEntityService orderSizeEntityService;
     private final ContractEntityService contractEntityService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
+    private final ObjectProvider<VehicleAssignmentService> vehicleAssignmentServiceProvider;
     private final VehicleRuleEntityService vehicleRuleEntityService;
     private final ContractRuleService contractRuleService;
     private final VehicleTypeEntityService vehicleTypeEntityService;
-    private final VehicleEntityService vehicleEntityService;
     private final OrderService orderService;
     private final ContractService contractService;
     private final OrderDetailMapper orderDetailMapper;
@@ -87,8 +89,8 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
-        // Check transition hợp lệ
-        if (currentStatus == null || !orderService.isValidTransition(currentStatus, orderDetailStatus)) {
+        // Check transition hợp lệ using order detail specific validation
+        if (currentStatus == null || !isValidTransitionForOrderDetail(currentStatus, orderDetailStatus)) {
             throw new BadRequestException(
                     ErrorEnum.INVALID.getMessage() + " Cannot change from " + orderDetailEntity.getStatus() + " to " + orderDetailStatus,
                     ErrorEnum.INVALID.getErrorCode()
@@ -176,10 +178,6 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
         orderEntity.setTotalQuantity(orderEntity.getTotalQuantity() + listOrderDetail.size());
 
-        BigDecimal totalWeight = BigDecimal.ZERO;
-        for(OrderDetailEntity orderDetailEntity : listOrderDetail){
-            totalWeight = totalWeight.add(orderDetailEntity.getWeight());
-        }
 //        orderEntity.setTotalWeight(orderEntity.getTotalWeight().add(totalWeight));
 
 
@@ -338,13 +336,16 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         log.info("Updating vehicle assignment for order ID: {}", orderId);
 
         //Lấy list assign phan bo tung detail cho moi vehicle rule
-        List<ContractRuleAssignResponse> assignResponses = contractService.assignVehicles(orderId);
-        Map<UUID,List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
+        List<ContractRuleAssignResponse> assignResponses = contractService.assignVehiclesWithAvailability(orderId);
+        Map<UUID, List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
         for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
             VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleRuleEntityService.findEntityById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
             mapVehicleTypeAndOrderDetail.put(
                     vehicleTypeEntity.getId(),
                     contractRuleAssignResponse.getAssignedDetails()
+                            .stream()
+                            .map(detail -> UUID.fromString(detail.id()))
+                            .toList()
             );
         }
 
@@ -362,45 +363,45 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         // 3. Map VehicleTypeId -> List<OrderDetailId>
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
             UUID vehicleRuleId = response.getVehicleRuleId();
-
             VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
-
             UUID vehicleTypeId = vehicleRule.getVehicleTypeEntity().getId();
-            mapVehicleTypeAndOrderDetail.put(vehicleTypeId, response.getAssignedDetails());
-        }
-
-        // 4. Lấy vehicleAssignments khả dụng
-        List<VehicleAssignmentEntity> listVehicleAssignments =
-                vehicleAssignmentEntityService.findByStatus(CommonStatusEnum.ACTIVE.name());
-
-        if (listVehicleAssignments.isEmpty()) {
-            throw new NotFoundException("No active vehicle assignments available",
-                    ErrorEnum.INVALID_REQUEST.getErrorCode());
-        }
+            mapVehicleTypeAndOrderDetail.put(
+                    vehicleTypeId,
+                    response.getAssignedDetails()
+                            .stream()
+                            .map(detail -> UUID.fromString(detail.id()))
+                            .toList()
+            );        }
 
         // 5. Assign
-        for (VehicleAssignmentEntity vehicleAssignmentEntity : listVehicleAssignments) {
-            UUID vehicleTypeId = vehicleAssignmentEntity.getVehicleEntity().getVehicleTypeEntity().getId();
-            if (mapVehicleTypeAndOrderDetail.containsKey(vehicleTypeId)) {
-                List<OrderDetailEntity> toUpdate = new ArrayList<>();
-                for (UUID orderDetailId : mapVehicleTypeAndOrderDetail.get(vehicleTypeId)) {
-                    OrderDetailEntity detail = orderDetailEntityService.findEntityById(orderDetailId)
-                            .orElseThrow(() -> new NotFoundException(
-                                    "Order detail not found: " + orderDetailId,
-                                    ErrorEnum.NOT_FOUND.getErrorCode()
-                            ));
-                    detail.setVehicleAssignmentEntity(vehicleAssignmentEntity);
-                    changeStatusOrderDetailExceptTroubles(detail.getId(),OrderStatusEnum.ASSIGNED_TO_DRIVER);
-                    toUpdate.add(detail);
-                }
-                orderDetailEntityService.saveAllOrderDetailEntities(toUpdate);
-                vehicleAssignmentEntity.setStatus(VehicleAssignmentStatusEnum.ASSIGNED.name());
+        for(UUID vehicleTypeId : mapVehicleTypeAndOrderDetail.keySet()){
+            VehicleAssignmentService vehicleAssignmentService = vehicleAssignmentServiceProvider.getIfAvailable();
+            if (vehicleAssignmentService == null) {
+                throw new IllegalStateException("VehicleAssignmentService not available");
             }
+            List<VehicleAssignmentResponse> listAssignmentByVehicleType = vehicleAssignmentService.getAllAssignmentsWithOrder(vehicleTypeId);
+            List<OrderDetailEntity> toUpdate = new ArrayList<>();
+            VehicleAssignmentEntity vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(listAssignmentByVehicleType.get(0).id()).get();
+            for (UUID orderDetailId : mapVehicleTypeAndOrderDetail.get(vehicleTypeId)) {
+                OrderDetailEntity detail = orderDetailEntityService.findEntityById(orderDetailId)
+                        .orElseThrow(() -> new NotFoundException(
+                                "Order detail not found: " + orderDetailId,
+                                ErrorEnum.NOT_FOUND.getErrorCode()
+                        ));
+                detail.setVehicleAssignmentEntity(vehicleAssignmentEntity);
+                changeStatusOrderDetailExceptTroubles(detail.getId(),OrderStatusEnum.ASSIGNED_TO_DRIVER);
+                toUpdate.add(detail);
+            }
+            orderDetailEntityService.saveAllOrderDetailEntities(toUpdate);
+            vehicleAssignmentEntity.setStatus(CommonStatusEnum.ACTIVE.name());
+            vehicleAssignmentEntityService.save(vehicleAssignmentEntity);
         }
+
+
 
         // 6. Return kết quả cuối cùng
         return orderDetailMapper.toGetOrderDetailResponseListBasic(
@@ -408,9 +409,109 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         );
     }
 
+    @Override
+    @Transactional
+    public List<GetOrderDetailsResponseForList> createAndAssignVehicleAssignmentForDetails(CreateAndAssignForDetailsRequest request) {
+        VehicleAssignmentService vehicleAssignmentService = vehicleAssignmentServiceProvider.getIfAvailable();
+        if (vehicleAssignmentService == null) {
+            throw new IllegalStateException("VehicleAssignmentService not available");
+        }
+        List<GetOrderDetailsResponseForList> resultResponse = new ArrayList<>();
+
+        // Iterate through tracking codes and their assignments
+        for(Map.Entry<String, VehicleAssignmentRequest> entry : request.assignments().entrySet()) {
+            String trackingCode = entry.getKey();
+            VehicleAssignmentRequest assignmentRequest = entry.getValue();
+
+            // Create the vehicle assignment
+            VehicleAssignmentResponse response = vehicleAssignmentService.createAssignment(assignmentRequest);
+            VehicleAssignmentEntity vehicleAssignmentEntity = vehicleAssignmentEntityService.findEntityById(response.id())
+                    .orElseThrow(() -> new NotFoundException(
+                            "Vehicle assignment not found: " + response.id(),
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+
+            // Find order detail using tracking code and update it
+            OrderDetailEntity detail = orderDetailEntityService.findByTrackingCode(trackingCode)
+                    .orElseThrow(() -> new NotFoundException(
+                            "Order detail not found with tracking code: " + trackingCode,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+
+            // Update and save the order detail
+            detail.setVehicleAssignmentEntity(vehicleAssignmentEntity);
+            changeStatusOrderDetailExceptTroubles(detail.getId(), OrderStatusEnum.ASSIGNED_TO_DRIVER);
+            orderDetailEntityService.save(detail);
+
+            // Add to result
+            resultResponse.add(orderDetailMapper.toGetOrderDetailsResponseForList(detail));
+        }
+
+        return resultResponse;
+    }
+
 
     @Override
     public List<GetOrderDetailsResponseForList> getAllOrderDetails() {
         return orderDetailMapper.toGetOrderDetailResponseListBasic(orderDetailEntityService.findAll());
+    }
+
+    /**
+     * Validates if a transition is valid for an order detail
+     * Order details represent individual cargo/shipment lots with a simplified flow
+     */
+    @Override
+    public boolean isValidTransitionForOrderDetail(OrderStatusEnum current, OrderStatusEnum next) {
+        switch(current) {
+            case PENDING:
+                return next == OrderStatusEnum.PROCESSING || next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
+            case PROCESSING:
+                return next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
+            case ASSIGNED_TO_DRIVER:
+                return next == OrderStatusEnum.PICKED_UP;
+            case PICKED_UP:
+                return next == OrderStatusEnum.SEALED_COMPLETED;
+            case SEALED_COMPLETED:
+                return next == OrderStatusEnum.ONGOING_DELIVERED;
+            case ONGOING_DELIVERED:
+                return next == OrderStatusEnum.DELIVERED;
+            case DELIVERED:
+                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.RETURNING;
+            case RETURNING:
+                return next == OrderStatusEnum.RETURNED;
+            case RETURNED:
+                return next == OrderStatusEnum.SUCCESSFUL;
+            // Terminal states
+            case CANCELLED:
+            case SUCCESSFUL:
+                return false;
+            default:
+                // For any status that can be directly cancelled
+                if (next == OrderStatusEnum.CANCELLED) {
+                    return true;
+                }
+                return false;
+        }
+    }
+
+    @Override
+    public boolean updateOrderDetailStatus(UUID orderDetailId, OrderStatusEnum newStatus) {
+        Optional<OrderDetailEntity> optionalDetail = orderDetailEntityService.findEntityById(orderDetailId);
+        if (optionalDetail.isEmpty()) {
+            return false;
+        }
+        OrderDetailEntity detail = optionalDetail.get();
+        OrderStatusEnum currentStatus;
+        try {
+            currentStatus = OrderStatusEnum.valueOf(detail.getStatus());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        if (!isValidTransitionForOrderDetail(currentStatus, newStatus)) {
+            return false;
+        }
+        detail.setStatus(newStatus.name());
+        orderDetailEntityService.save(detail);
+        return true;
     }
 }

@@ -1,19 +1,22 @@
 package capstone_project.service.services.order.order;
 
 import capstone_project.common.enums.OrderStatusEnum;
+import capstone_project.common.enums.UnitEnum;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
-import capstone_project.dtos.response.order.CreateOrderResponse;
-import capstone_project.dtos.response.order.GetOrderResponse;
+import capstone_project.dtos.response.order.*;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 public interface OrderService {
+    List<OrderForCustomerListResponse> getOrdersForCurrentCustomer();
+
     CreateOrderResponse createOrder(CreateOrderRequest orderRequest, List<CreateOrderDetailRequest> listCreateOrderDetailRequests);
 
     CreateOrderResponse changeAStatusOrder(UUID orderId, OrderStatusEnum status);
@@ -33,10 +36,28 @@ public interface OrderService {
     List<OrderDetailEntity> batchCreateOrderDetails(
             List<CreateOrderDetailRequest> requests, OrderEntity savedOrder, LocalDateTime estimateStartTime);
 
-    List<CreateOrderResponse> getAllOrders();
+    List<GetOrderForGetAllResponse> getAllOrders();
 
     List<CreateOrderResponse> getOrdersForCusByUserId(UUID userId);
 
     GetOrderResponse getOrderById(UUID orderId);
+
+    List<UnitEnum> responseListUnitEnum();
+
+    BigDecimal convertToTon(BigDecimal weightBaseUnit, String unit);
+
+    GetOrderForCustomerResponse getOrderForCustomerByOrderId(UUID orderId);
+
+    SimpleOrderForCustomerResponse getSimplifiedOrderForCustomerByOrderId(UUID orderId);
+
+    StaffOrderForStaffResponse getOrderForStaffByOrderId(UUID orderId);
+
+    boolean signContractAndOrder(UUID contractId);
+
+    boolean updateOrderStatus(UUID orderId, OrderStatusEnum newStatus);
+
+    List<GetOrderForDriverResponse> getOrderForDriverByCurrentDrive();
+
+    GetOrderByJpaResponse getSimplifiedOrderForCustomerV2ByOrderId(UUID orderId);
 
 }

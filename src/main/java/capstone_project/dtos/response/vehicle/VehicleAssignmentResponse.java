@@ -9,6 +9,7 @@ public record VehicleAssignmentResponse(
         UUID vehicleId,
         UUID driver_id_1,
         UUID driver_id_2,
-        String description,
-        String status
-) {}
+        String status,
+        String trackingCode
+){
+}

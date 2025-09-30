@@ -3,12 +3,16 @@ package capstone_project.controller.auth;
 
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
+import capstone_project.dtos.response.auth.AccessTokenResponse;
 import capstone_project.dtos.response.auth.ChangePasswordResponse;
 import capstone_project.dtos.response.auth.LoginResponse;
 import capstone_project.dtos.response.auth.RefreshTokenResponse;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.service.services.auth.RegisterService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,27 +25,42 @@ public class AuthsController {
 
     private final RegisterService registerService;
 
-    /**
-     * Login response entity.
-     *
-     * @param loginRequest the login request
-     * @return the response entity
-     */
     @PostMapping("")
-    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody @Valid LoginWithoutEmailRequest loginRequest) {
+    public ResponseEntity<ApiResponse<AccessTokenResponse>> login(
+            @RequestBody @Valid LoginWithoutEmailRequest loginRequest,
+            HttpServletResponse response) {
         final var login = registerService.login(loginRequest);
-        return ResponseEntity.ok(ApiResponse.ok(login));
+
+        // set refresh token as HttpOnly cookie
+        registerService.addRefreshTokenCookie(response, login.getRefreshToken());
+
+        var accessDto = AccessTokenResponse.builder()
+                .authToken(login.getAuthToken())
+                .user(login.getUser())
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.ok(accessDto));
     }
 
     @PostMapping("/google")
-    public ResponseEntity<ApiResponse<LoginResponse>> loginWithGoogle(@RequestBody @Valid RegisterUserRequest registerUserRequest) {
+    public ResponseEntity<ApiResponse<LoginResponse>> loginWithGoogle(
+            @RequestBody @Valid RegisterUserRequest registerUserRequest,
+            HttpServletResponse response) {
         final var login = registerService.loginWithGoogle(registerUserRequest);
+
+        // Set refresh token as a cookie
+        // addRefreshTokenCookie(response, login.getRefreshToken());
+
+        // Set access token as a cookie
+        // addAccessTokenCookie(response, login.getAuthToken());
+
         return ResponseEntity.ok(ApiResponse.ok(login));
     }
 
     @PostMapping("/token/refresh")
-    public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessToken(@RequestBody @Valid RefreshTokenRequest refreshTokenRequest) {
-        final var refreshTokenResponse = registerService.refreshAccessToken(refreshTokenRequest);
+    public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessToken(HttpServletRequest request) {
+        String refreshToken = registerService.extractRefreshTokenFromCookies(request);
+        final var refreshTokenResponse = registerService.refreshAccessToken(refreshToken);
         return ResponseEntity.ok(ApiResponse.ok(refreshTokenResponse));
     }
 
@@ -62,5 +81,4 @@ public class AuthsController {
         final var changePasswordResponse = registerService.changePasswordForForgetPassword(changePasswordForForgetPassRequest);
         return ResponseEntity.ok(ApiResponse.ok(changePasswordResponse));
     }
-
 }

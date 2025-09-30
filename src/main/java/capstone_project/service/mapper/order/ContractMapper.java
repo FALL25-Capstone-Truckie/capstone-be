@@ -1,6 +1,7 @@
 package capstone_project.service.mapper.order;
 
 import capstone_project.dtos.request.order.ContractRequest;
+import capstone_project.dtos.request.order.CreateContractForCusRequest;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.order.contract.ContractEntity;
@@ -17,13 +18,18 @@ public interface ContractMapper {
     ContractResponse toContractResponse(ContractEntity contractEntity);
 
     @Mapping(source = "orderId", target = "orderEntity", qualifiedByName = "orderFromId")
-    @Mapping(source = "staffId", target = "staff", qualifiedByName = "staffFromId")
+//    @Mapping(source = "staffId", target = "staff", qualifiedByName = "staffFromId")
     @Mapping(target = "totalValue", ignore = true)
     ContractEntity mapRequestToEntity(ContractRequest contractRequest);
 
+    @Mapping(source = "orderId", target = "orderEntity", qualifiedByName = "orderFromId")
+//    @Mapping(source = "staffId", target = "staff", qualifiedByName = "staffFromId")
+    @Mapping(target = "totalValue", ignore = true)
+    ContractEntity mapRequestForCusToEntity(CreateContractForCusRequest contractRequest);
+
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     @Mapping(target = "orderEntity", source = "orderId", qualifiedByName = "orderFromId")
-    @Mapping(target = "staff", source = "staffId", qualifiedByName = "staffFromId")
+//    @Mapping(target = "staff", source = "staffId", qualifiedByName = "staffFromId")
     void toContractEntity(ContractRequest request, @MappingTarget ContractEntity entity);
 
     @Named("orderFromId")

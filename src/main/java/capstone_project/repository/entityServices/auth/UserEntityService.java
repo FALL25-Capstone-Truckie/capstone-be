@@ -48,4 +48,10 @@ public interface UserEntityService extends BaseEntityService<UserEntity, UUID> {
     List<UserEntity> getUserByUserNameOrEmailLike(final String username, final String email);
 
     List<UserEntity> getUserEntitiesByRoleRoleName(String roleName);
+
+    List<UserEntity> findAllByIdIn(List<UUID> ids);
+
+    List<Object[]> countAllByUserStatus();
+
+    int countAllUsers();
 }
