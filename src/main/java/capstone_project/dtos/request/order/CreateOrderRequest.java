@@ -37,10 +37,6 @@ public record CreateOrderRequest(
         @UUID(message = "Pickup address ID must be a valid UUID")
         String pickupAddressId,
 
-        @NotBlank(message = "Sender ID cannot be blank")
-        @UUID(message = "Sender ID must be a valid UUID")
-        String senderId,
-
         @NotBlank(message = "Category ID cannot be blank")
         @UUID(message = "Category ID must be a valid UUID")
         String categoryId
