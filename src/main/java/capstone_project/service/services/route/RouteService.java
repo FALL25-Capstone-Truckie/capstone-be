@@ -1,4 +1,4 @@
-package capstone_project.service.services.order.route;
+package capstone_project.service.services.route;
 
 import capstone_project.dtos.request.route.SuggestRouteRequest;
 import capstone_project.dtos.response.route.RoutePointsResponse;

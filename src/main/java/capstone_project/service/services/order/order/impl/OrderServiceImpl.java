@@ -95,8 +95,16 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException(ErrorEnum.NOT_FOUND.getMessage(),
                     ErrorEnum.NOT_FOUND.getErrorCode());
         }
-        CustomerEntity sender = customerEntityService.findEntityById(UUID.fromString(orderRequest.senderId()))
-                .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "sender not found",
+
+        UUID customerId = userContextUtils.getCurrentCustomerId();
+        if (customerId == null) {
+            log.error("Current customer id is null");
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + " sender not found",
+                    ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        CustomerEntity sender = customerEntityService.findEntityById(customerId)
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + " sender not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
         if (sender.getStatus().equals(CommonStatusEnum.INACTIVE.name())) {

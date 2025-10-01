@@ -1,4 +1,4 @@
-package capstone_project.service.services.order.route.impl;
+package capstone_project.service.services.route.impl;
 
 import capstone_project.dtos.request.route.SuggestRouteRequest;
 import capstone_project.dtos.response.route.RoutePointResponse;
@@ -12,9 +12,8 @@ import capstone_project.repository.entityServices.order.order.OrderEntityService
 import capstone_project.repository.entityServices.setting.CarrierSettingEntityService;
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
-import capstone_project.service.services.order.route.RouteService;
+import capstone_project.service.services.route.RouteService;
 import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
-import com.azure.core.implementation.jackson.ObjectMapperShim;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -100,8 +99,8 @@ public class RouteServiceImpl implements RouteService {
                 deliveryAddr.getId()
         ));
 
-        String tracking = va.getTrackingCode() == null ? "" : va.getTrackingCode();
-        return new RoutePointsResponse(assignmentId, tracking, points);
+        // Return only the points list
+        return new RoutePointsResponse(points);
     }
 
     @Override
@@ -115,7 +114,7 @@ public class RouteServiceImpl implements RouteService {
         var careerOpt = carrierSettingEntityService.findAll().stream().findFirst();
         var career = careerOpt.orElseThrow(() -> new IllegalStateException("Carrier settings not found"));
 
-        // Load the order directly - using findEntityById instead of findById
+        // Load the order directly - using findById instead of findEntityById
         OrderEntity order = orderEntityService.findEntityById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found with ID: " + orderId));
 
@@ -158,13 +157,8 @@ public class RouteServiceImpl implements RouteService {
                 deliveryAddr.getId()
         ));
 
-        // Use order code or ID as reference
-        String tracking = order.getOrderCode();
-        if (tracking == null || tracking.isEmpty()) {
-            tracking = order.getId().toString();
-        }
-
-        return new RoutePointsResponse(orderId, tracking, points);
+        // Return only the points list
+        return new RoutePointsResponse(points);
     }
 
     @Override
@@ -173,17 +167,25 @@ public class RouteServiceImpl implements RouteService {
             throw new IllegalArgumentException("request.points must not be null");
         }
 
-        List<List<BigDecimal>> rawPoints = request.points();
-        if (rawPoints.size() < 2) {
+        List<List<BigDecimal>> pointsToUse = request.points();
+        if (pointsToUse.size() < 2) {
             throw new IllegalArgumentException("At least two points required");
+        }
+
+        // Get original point types if provided
+        List<String> typesToUse = request.pointTypes();
+
+        // Handle case when pointTypes is null or has different size than points
+        if (typesToUse == null || typesToUse.size() != pointsToUse.size()) {
+            typesToUse = generateDefaultPointTypes(pointsToUse.size());
         }
 
         // convert BigDecimal points to List<List<Double>> for Vietmap request and validate ranges
         List<List<Double>> pathForRequest = new ArrayList<>();
-        for (int i = 0; i < rawPoints.size(); i++) {
-            List<BigDecimal> p = rawPoints.get(i);
+        for (int i = 0; i < pointsToUse.size(); i++) {
+            List<BigDecimal> p = pointsToUse.get(i);
             if (p == null || p.size() < 2) {
-                throw new IllegalArgumentException("Each point must be a \\[lng, lat\\] pair. invalid index: " + i);
+                throw new IllegalArgumentException("Each point must be a [lng, lat] pair. invalid index: " + i);
             }
             BigDecimal lngBd = p.get(0);
             BigDecimal latBd = p.get(1);
@@ -204,6 +206,10 @@ public class RouteServiceImpl implements RouteService {
 
             Integer vietVehicle = null;
             // resolve vietVehicle if needed using request.vehicleTypeId() and mapVehicleTypeNameToVietmap(...)
+            if (request.vehicleTypeId() != null) {
+                // Here you would map vehicle type ID to the appropriate Vietmap vehicle type
+                // vietVehicle = mapVehicleTypeIdToVietmap(request.vehicleTypeId());
+            }
 
             String vietResp = vietmapService.routeTolls(bodyJson, vietVehicle);
             JsonNode root = objectMapper.readTree(vietResp);
@@ -236,36 +242,90 @@ public class RouteServiceImpl implements RouteService {
                 }
             }
 
-            RouteSegmentResponse seg = new RouteSegmentResponse(
+            // Create separate segments for each point-to-point part of the route
+            List<RouteSegmentResponse> segments = new ArrayList<>();
+
+            // Create the raw data for response
+            Map<String, Object> rawData = new HashMap<>();
+            rawData.put("source", "vietmap");
+            if (typesToUse != null && !typesToUse.isEmpty()) {
+                rawData.put("pointTypes", typesToUse);
+            }
+
+            // If we have enough points, create multiple segments
+            if (pointsToUse.size() > 2) {
+                // Create a segment for each adjacent pair of points
+                for (int i = 0; i < pointsToUse.size() - 1; i++) {
+                    String fromType = typesToUse.get(i);
+                    String toType = typesToUse.get(i + 1);
+
+                    Map<String, Object> segmentRawData = new HashMap<>(rawData);
+                    segmentRawData.put("fromType", fromType);
+                    segmentRawData.put("toType", toType);
+                    segmentRawData.put("segmentIndex", i);
+
+                    RouteSegmentResponse segment = new RouteSegmentResponse(
+                        i + 1,
+                        formatPointLabel(fromType, i),
+                        formatPointLabel(toType, i + 1),
+                        extractPathSegment(path, pointsToUse.get(i), pointsToUse.get(i + 1)),
+                        new ArrayList<>(), // Tolls will be distributed
+                        segmentRawData
+                    );
+
+                    segments.add(segment);
+                }
+
+                // Distribute toll costs across segments
+                distributeTollsToSegments(segments, tolls, totalToll);
+
+                return new SuggestRouteResponse(segments, totalToll);
+            } else {
+                // Just create a single segment for the whole route
+                RouteSegmentResponse segment = new RouteSegmentResponse(
                     1,
-                    "Start",
-                    "End",
+                    formatPointLabel(typesToUse.get(0), 0),
+                    formatPointLabel(typesToUse.get(typesToUse.size() - 1), typesToUse.size() - 1),
                     path,
                     tolls,
-                    Map.of("source", "vietmap")
-            );
+                    rawData
+                );
 
-            return new SuggestRouteResponse(List.of(seg), totalToll);
+                return new SuggestRouteResponse(List.of(segment), totalToll);
+            }
         } catch (Exception ex) {
-            // fallback: build mocked segments using original BigDecimal points (rawPoints)
+            log.warn("Error getting route from Vietmap: {}", ex.getMessage());
+            // fallback: build mocked segments using ordered points
             List<RouteSegmentResponse> segments = new ArrayList<>();
             long totalToll = 0L;
-            for (int i = 0; i < rawPoints.size() - 1; i++) {
-                List<BigDecimal> start = rawPoints.get(i);
-                List<BigDecimal> end = rawPoints.get(i + 1);
+            for (int i = 0; i < pointsToUse.size() - 1; i++) {
+                List<BigDecimal> start = pointsToUse.get(i);
+                List<BigDecimal> end = pointsToUse.get(i + 1);
                 List<List<BigDecimal>> path = Arrays.asList(
                         Arrays.asList(start.get(0), start.get(1)),
                         Arrays.asList(end.get(0), end.get(1))
                 );
                 List<TollResponse> emptyTolls = Collections.emptyList();
-                Map<String, Object> raw = Map.of("mock", true, "segmentIndex", i, "vehicleTypeId", request.vehicleTypeId());
+
+                // Add point type information to raw data
+                Map<String, Object> rawData = new HashMap<>();
+                rawData.put("mock", true);
+                rawData.put("segmentIndex", i);
+                rawData.put("vehicleTypeId", request.vehicleTypeId());
+                if (typesToUse != null && typesToUse.size() > i) {
+                    rawData.put("fromType", typesToUse.get(i));
+                    if (i + 1 < typesToUse.size()) {
+                        rawData.put("toType", typesToUse.get(i + 1));
+                    }
+                }
+
                 RouteSegmentResponse seg = new RouteSegmentResponse(
                         i + 1,
-                        "Point " + i,
-                        "Point " + (i + 1),
+                        formatPointLabel(typesToUse.get(i), i),
+                        formatPointLabel(typesToUse.get(i + 1), i + 1),
                         path,
                         emptyTolls,
-                        raw
+                        rawData
                 );
                 segments.add(seg);
             }
@@ -335,5 +395,222 @@ public class RouteServiceImpl implements RouteService {
                 return "";
             }
         }
+    }
+
+    /**
+     * Fallback point order optimization using nearest-neighbor heuristic.
+     * Given a list of points and their optional types, reorder the points to minimize travel distance.
+     * Returns a new ordered list of points and corresponding types.
+     */
+    private PointOrderResult orderPointsNearestNeighbor(List<List<BigDecimal>> rawPoints, List<String> pointTypes) {
+        if (rawPoints == null || rawPoints.size() < 2) {
+            return new PointOrderResult(rawPoints, pointTypes);
+        }
+
+        try {
+            // Start with the first point as the initial "current" point
+            List<BigDecimal> startPoint = rawPoints.get(0);
+            List<List<BigDecimal>> orderedPoints = new ArrayList<>();
+            List<String> orderedTypes = new ArrayList<>();
+
+            orderedPoints.add(startPoint);
+            if (pointTypes != null && !pointTypes.isEmpty()) {
+                orderedTypes.add(pointTypes.get(0));
+            }
+
+            Set<List<BigDecimal>> remainingPoints = new HashSet<>(rawPoints);
+            remainingPoints.remove(startPoint);
+
+            List<BigDecimal> currentPoint = startPoint;
+
+            // While there are remaining points, find the nearest neighbor and add to the route
+            while (!remainingPoints.isEmpty()) {
+                List<BigDecimal> nearestPoint = null;
+                double nearestDistance = Double.MAX_VALUE;
+
+                for (List<BigDecimal> candidate : remainingPoints) {
+                    double distance = calculateDistance(currentPoint, candidate);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearestPoint = candidate;
+                    }
+                }
+
+                if (nearestPoint != null) {
+                    orderedPoints.add(nearestPoint);
+                    currentPoint = nearestPoint;
+                    remainingPoints.remove(nearestPoint);
+
+                    // Also reorder the types if provided
+                    if (pointTypes != null && !pointTypes.isEmpty()) {
+                        int index = rawPoints.indexOf(nearestPoint);
+                        if (index >= 0 && index < pointTypes.size()) {
+                            orderedTypes.add(pointTypes.get(index));
+                        }
+                    }
+                }
+            }
+
+            return new PointOrderResult(orderedPoints, orderedTypes);
+        } catch (Exception ex) {
+            log.warn("Error optimizing point order: {}", ex.getMessage());
+            // In case of error, fallback to original order
+            return new PointOrderResult(rawPoints, pointTypes);
+        }
+    }
+
+    /**
+     * Calculate distance between two points (lng/lat) using Haversine formula.
+     */
+    private double calculateDistance(List<BigDecimal> point1, List<BigDecimal> point2) {
+        final int R = 6371; // Radius of the earth in kilometers
+
+        double lat1 = point1.get(1).doubleValue();
+        double lon1 = point1.get(0).doubleValue();
+        double lat2 = point2.get(1).doubleValue();
+        double lon2 = point2.get(0).doubleValue();
+
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c; // Distance in kilometers
+    }
+
+    /**
+     * Helper class to encapsulate the result of point order optimization.
+     */
+    private static class PointOrderResult {
+        List<List<BigDecimal>> points;
+        List<String> types;
+
+        PointOrderResult(List<List<BigDecimal>> points, List<String> types) {
+            this.points = points;
+            this.types = types;
+        }
+    }
+
+    private String getPointLabel(List<String> types, int index, String defaultLabel) {
+        if (types != null && types.size() > index) {
+            String type = types.get(index);
+            if (type != null && !type.isEmpty()) {
+                return type;
+            }
+        }
+        return defaultLabel;
+    }
+
+    /**
+     * Generate default point types for the given number of points.
+     * Used when the provided pointTypes is null or has different size than points.
+     */
+    private List<String> generateDefaultPointTypes(int count) {
+        List<String> defaultTypes = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            defaultTypes.add("Point " + (i + 1));
+        }
+        return defaultTypes;
+    }
+
+    /**
+     * Create raw data map for response based on request and point types.
+     */
+    private Map<String, Object> createRawDataForResponse(SuggestRouteRequest request, List<String> typesToUse, boolean optimize) {
+        Map<String, Object> rawData = new HashMap<>();
+        rawData.put("source", "vietmap");
+        if (optimize) {
+            rawData.put("optimized", true);
+        }
+        if (typesToUse != null && !typesToUse.isEmpty()) {
+            rawData.put("pointTypes", typesToUse);
+        }
+        return rawData;
+    }
+
+    /**
+     * Extract a segment of the path between two points.
+     */
+    private List<List<BigDecimal>> extractPathSegment(List<List<BigDecimal>> fullPath, List<BigDecimal> startPoint, List<BigDecimal> endPoint) {
+        int startIndex = fullPath.indexOf(startPoint);
+        int endIndex = fullPath.indexOf(endPoint);
+
+        if (startIndex < 0 || endIndex < 0 || startIndex >= endIndex) {
+            return Collections.emptyList();
+        }
+
+        return fullPath.subList(startIndex, endIndex + 1);
+    }
+
+    /**
+     * Distribute tolls across multiple segments.
+     * For simplicity, this example distributes tolls evenly based on the number of segments.
+     */
+    private void distributeTollsToSegments(List<RouteSegmentResponse> segments, List<TollResponse> tolls, long totalToll) {
+        if (segments == null || segments.isEmpty() || tolls == null || tolls.isEmpty()) {
+            return;
+        }
+
+        int numSegments = segments.size();
+        int numTolls = tolls.size();
+
+        // Since RouteSegmentResponse is immutable (a record), we need to create new instances
+        // Simple case: if only one segment, assign all tolls to it
+        if (numSegments == 1) {
+            RouteSegmentResponse oldSegment = segments.get(0);
+            RouteSegmentResponse newSegment = new RouteSegmentResponse(
+                oldSegment.segmentOrder(),
+                oldSegment.startName(),
+                oldSegment.endName(),
+                oldSegment.path(),
+                tolls, // Assign all tolls to this segment
+                oldSegment.rawResponse()
+            );
+            segments.set(0, newSegment);
+            return;
+        }
+
+        // Distribute tolls across segments
+        // First, prepare toll lists for each segment
+        List<List<TollResponse>> segmentTolls = new ArrayList<>();
+        for (int i = 0; i < numSegments; i++) {
+            segmentTolls.add(new ArrayList<>());
+        }
+
+        // Assign tolls to segments using round-robin
+        for (int i = 0; i < numTolls; i++) {
+            TollResponse toll = tolls.get(i);
+            int segmentIndex = i % numSegments;
+            segmentTolls.get(segmentIndex).add(toll);
+        }
+
+        // Create new segment responses with the distributed tolls
+        for (int i = 0; i < numSegments; i++) {
+            RouteSegmentResponse oldSegment = segments.get(i);
+            RouteSegmentResponse newSegment = new RouteSegmentResponse(
+                oldSegment.segmentOrder(),
+                oldSegment.startName(),
+                oldSegment.endName(),
+                oldSegment.path(),
+                segmentTolls.get(i),
+                oldSegment.rawResponse()
+            );
+            segments.set(i, newSegment);
+        }
+    }
+
+    /**
+     * Format a user-friendly label for a point based on its type and index
+     */
+    private String formatPointLabel(String pointType, int index) {
+        if (pointType == null || pointType.isEmpty()) {
+            return "Point " + (index + 1);
+        }
+
+        // Capitalize first letter
+        String capitalizedType = pointType.substring(0, 1).toUpperCase() + pointType.substring(1).toLowerCase();
+        return capitalizedType;
     }
 }

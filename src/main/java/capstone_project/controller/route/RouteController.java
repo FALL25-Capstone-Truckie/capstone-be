@@ -3,7 +3,7 @@ package capstone_project.controller.route;
 import capstone_project.dtos.request.route.SuggestRouteRequest;
 import capstone_project.dtos.response.route.RoutePointsResponse;
 import capstone_project.dtos.response.route.SuggestRouteResponse;
-import capstone_project.service.services.order.route.RouteService;
+import capstone_project.service.services.route.RouteService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
