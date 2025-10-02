@@ -1,8 +1,6 @@
 package capstone_project.dtos.response.vehicle;
 
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -17,7 +15,7 @@ public record GroupedVehicleAssignmentResponse(
      */
     public record OrderDetailGroup(
         List<OrderDetailInfo> orderDetails,
-        List<VehicleSuggestionDTO> suggestedVehicles,
+        List<VehicleSuggestionResponse> suggestedVehicles,
         String groupingReason
     ) {}
 
@@ -35,19 +33,21 @@ public record GroupedVehicleAssignmentResponse(
     /**
      * DTO for vehicle suggestions with isRecommended flag
      */
-    public record VehicleSuggestionDTO(
+    public record VehicleSuggestionResponse(
         UUID id,
         String licensePlateNumber,
         String model,
         String manufacturer,
-        List<DriverSuggestionDTO> suggestedDrivers,
+        UUID vehicleTypeId,
+        String vehicleTypeName,
+        List<DriverSuggestionResponse> suggestedDrivers,
         boolean isRecommended
     ) {}
 
     /**
      * DTO for driver suggestions with isRecommended flag and additional info
      */
-    public record DriverSuggestionDTO(
+    public record DriverSuggestionResponse(
         UUID id,
         String fullName,
         String driverLicenseNumber,

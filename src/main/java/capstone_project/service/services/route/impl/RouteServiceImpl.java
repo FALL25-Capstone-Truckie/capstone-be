@@ -202,21 +202,31 @@ public class RouteServiceImpl implements RouteService {
 
         try {
             ObjectMapper objectMapper = new ObjectMapper();
-            String bodyJson = objectMapper.writeValueAsString(Map.of("path", pathForRequest));
+            // Send the path as a direct array of coordinates, not wrapped in a "path" object
+            String bodyJson = objectMapper.writeValueAsString(pathForRequest);
+
+            log.info("Sending Vietmap request body: {}", bodyJson);
 
             Integer vietVehicle = null;
-            // resolve vietVehicle if needed using request.vehicleTypeId() and mapVehicleTypeNameToVietmap(...)
+            // resolve vietVehicle if needed using request.vehicleTypeId() and mapVehicleTypeIdToVietmap(...)
             if (request.vehicleTypeId() != null) {
                 // Here you would map vehicle type ID to the appropriate Vietmap vehicle type
                 // vietVehicle = mapVehicleTypeIdToVietmap(request.vehicleTypeId());
             }
 
             String vietResp = vietmapService.routeTolls(bodyJson, vietVehicle);
+            log.info("Received Vietmap response: {}", vietResp);
+
             JsonNode root = objectMapper.readTree(vietResp);
 
             // parse path into BigDecimal coordinates
             List<List<BigDecimal>> path = new ArrayList<>();
             JsonNode pathNode = root.path("path");
+            log.info("Path node exists: {}, isArray: {}, size: {}",
+                    !pathNode.isMissingNode(),
+                    pathNode.isArray(),
+                    pathNode.isArray() ? pathNode.size() : 0);
+
             if (pathNode.isArray()) {
                 for (JsonNode coord : pathNode) {
                     if (coord.isArray() && coord.size() >= 2) {
@@ -225,21 +235,40 @@ public class RouteServiceImpl implements RouteService {
                         path.add(Arrays.asList(lng, lat));
                     }
                 }
+                log.info("Extracted path size: {}", path.size());
+            } else {
+                log.warn("Path node is not an array or is missing in the response");
             }
 
             // extract tolls and compute total
             List<TollResponse> tolls = new ArrayList<>();
-            long totalToll = 0L;
+            long totalTollAmount = 0L;
+            int totalTollCount = 0;
             JsonNode tollsNode = root.path("tolls");
+            log.info("Tolls node exists: {}, isArray: {}, size: {}",
+                    !tollsNode.isMissingNode(),
+                    tollsNode.isArray(),
+                    tollsNode.isArray() ? tollsNode.size() : 0);
+
             if (tollsNode.isArray()) {
                 for (JsonNode t : tollsNode) {
                     String name = t.path("name").asText(null);
                     String address = t.path("address").asText(null);
                     String type = t.path("type").asText(null);
                     long amount = t.path("amount").asLong(0L);
-                    tolls.add(new TollResponse(name, address, type, amount));
-                    totalToll += amount;
+
+                    log.info("Toll extracted - Name: {}, Address: {}, Type: {}, Amount: {}",
+                             name, address, type, amount);
+
+                    // Create and add the toll response object
+                    TollResponse toll = new TollResponse(name, address, type, amount);
+                    tolls.add(toll);
+                    totalTollAmount += amount;
+                    totalTollCount++;
                 }
+                log.info("Extracted {} tolls with total amount: {}", totalTollCount, totalTollAmount);
+            } else {
+                log.warn("Tolls node is not an array or is missing in the response");
             }
 
             // Create separate segments for each point-to-point part of the route
@@ -255,6 +284,7 @@ public class RouteServiceImpl implements RouteService {
             // If we have enough points, create multiple segments
             if (pointsToUse.size() > 2) {
                 // Create a segment for each adjacent pair of points
+                double totalDistance = 0;
                 for (int i = 0; i < pointsToUse.size() - 1; i++) {
                     String fromType = typesToUse.get(i);
                     String toType = typesToUse.get(i + 1);
@@ -264,12 +294,17 @@ public class RouteServiceImpl implements RouteService {
                     segmentRawData.put("toType", toType);
                     segmentRawData.put("segmentIndex", i);
 
+                    List<List<BigDecimal>> segmentPath = extractPathSegment(path, pointsToUse.get(i), pointsToUse.get(i + 1));
+                    double segmentDistance = calculatePathDistance(segmentPath);
+                    totalDistance += segmentDistance;
+
                     RouteSegmentResponse segment = new RouteSegmentResponse(
                         i + 1,
                         formatPointLabel(fromType, i),
                         formatPointLabel(toType, i + 1),
-                        extractPathSegment(path, pointsToUse.get(i), pointsToUse.get(i + 1)),
+                        segmentPath,
                         new ArrayList<>(), // Tolls will be distributed
+                        segmentDistance,   // Add the segment distance
                         segmentRawData
                     );
 
@@ -277,27 +312,35 @@ public class RouteServiceImpl implements RouteService {
                 }
 
                 // Distribute toll costs across segments
-                distributeTollsToSegments(segments, tolls, totalToll);
+                distributeTollsToSegments(segments, tolls, totalTollAmount);
 
-                return new SuggestRouteResponse(segments, totalToll);
+                log.info("Creating SuggestRouteResponse with segments: {}, totalTollAmount: {}, totalTollCount: {}, totalDistance: {} km",
+                    segments.size(), totalTollAmount, totalTollCount, totalDistance);
+                return new SuggestRouteResponse(segments, totalTollAmount, totalTollCount, totalDistance);
             } else {
                 // Just create a single segment for the whole route
+                double totalDistance = calculatePathDistance(path);
+
                 RouteSegmentResponse segment = new RouteSegmentResponse(
                     1,
                     formatPointLabel(typesToUse.get(0), 0),
                     formatPointLabel(typesToUse.get(typesToUse.size() - 1), typesToUse.size() - 1),
                     path,
                     tolls,
+                    totalDistance,  // Add the segment distance
                     rawData
                 );
 
-                return new SuggestRouteResponse(List.of(segment), totalToll);
+                return new SuggestRouteResponse(List.of(segment), totalTollAmount, totalTollCount, totalDistance);
             }
         } catch (Exception ex) {
             log.warn("Error getting route from Vietmap: {}", ex.getMessage());
             // fallback: build mocked segments using ordered points
             List<RouteSegmentResponse> segments = new ArrayList<>();
             long totalToll = 0L;
+            int totalTollCount = 0;
+            double totalDistance = 0;
+
             for (int i = 0; i < pointsToUse.size() - 1; i++) {
                 List<BigDecimal> start = pointsToUse.get(i);
                 List<BigDecimal> end = pointsToUse.get(i + 1);
@@ -319,17 +362,22 @@ public class RouteServiceImpl implements RouteService {
                     }
                 }
 
+                // Calculate distance for this straight-line segment
+                double segmentDistance = calculateDistance(start, end);
+                totalDistance += segmentDistance;
+
                 RouteSegmentResponse seg = new RouteSegmentResponse(
                         i + 1,
                         formatPointLabel(typesToUse.get(i), i),
                         formatPointLabel(typesToUse.get(i + 1), i + 1),
                         path,
                         emptyTolls,
+                        segmentDistance, // Add the distance parameter
                         rawData
                 );
                 segments.add(seg);
             }
-            return new SuggestRouteResponse(segments, totalToll);
+            return new SuggestRouteResponse(segments, totalToll, totalTollCount, totalDistance);
         }
     }
 
@@ -481,6 +529,24 @@ public class RouteServiceImpl implements RouteService {
     }
 
     /**
+     * Calculate the total distance along a path of coordinates using the Haversine formula.
+     * @param path List of coordinate points [lng, lat]
+     * @return Total distance in kilometers
+     */
+    private double calculatePathDistance(List<List<BigDecimal>> path) {
+        if (path == null || path.size() < 2) {
+            return 0;
+        }
+
+        double totalDistance = 0;
+        for (int i = 0; i < path.size() - 1; i++) {
+            totalDistance += calculateDistance(path.get(i), path.get(i + 1));
+        }
+
+        return totalDistance;
+    }
+
+    /**
      * Helper class to encapsulate the result of point order optimization.
      */
     private static class PointOrderResult {
@@ -531,17 +597,57 @@ public class RouteServiceImpl implements RouteService {
     }
 
     /**
-     * Extract a segment of the path between two points.
+     * Extract a segment of the path between two waypoints.
+     * Finds the closest points in the full path to the given waypoints and extracts that segment.
      */
     private List<List<BigDecimal>> extractPathSegment(List<List<BigDecimal>> fullPath, List<BigDecimal> startPoint, List<BigDecimal> endPoint) {
-        int startIndex = fullPath.indexOf(startPoint);
-        int endIndex = fullPath.indexOf(endPoint);
-
-        if (startIndex < 0 || endIndex < 0 || startIndex >= endIndex) {
+        if (fullPath == null || fullPath.isEmpty()) {
             return Collections.emptyList();
         }
 
-        return fullPath.subList(startIndex, endIndex + 1);
+        // Find the index of the point in fullPath closest to startPoint
+        int startIndex = findClosestPointIndex(fullPath, startPoint);
+
+        // Find the index of the point in fullPath closest to endPoint
+        int endIndex = findClosestPointIndex(fullPath, endPoint);
+
+        // Ensure proper ordering (start should come before end)
+        if (startIndex > endIndex) {
+            // If the path wraps around, we need to select the appropriate segment
+            // For simplicity, we'll just return the shorter segment
+            if (startIndex - endIndex < fullPath.size() - startIndex + endIndex) {
+                return fullPath.subList(endIndex, startIndex + 1);
+            } else {
+                List<List<BigDecimal>> result = new ArrayList<>();
+                result.addAll(fullPath.subList(startIndex, fullPath.size()));
+                result.addAll(fullPath.subList(0, endIndex + 1));
+                return result;
+            }
+        } else if (startIndex == endIndex) {
+            // If they're the same point, just return that point
+            return Collections.singletonList(fullPath.get(startIndex));
+        } else {
+            // Normal case: start comes before end
+            return fullPath.subList(startIndex, endIndex + 1);
+        }
+    }
+
+    /**
+     * Find the index of the point in the list that is closest to the target point.
+     */
+    private int findClosestPointIndex(List<List<BigDecimal>> points, List<BigDecimal> target) {
+        int closestIndex = 0;
+        double closestDistance = Double.MAX_VALUE;
+
+        for (int i = 0; i < points.size(); i++) {
+            double distance = calculateDistance(points.get(i), target);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestIndex = i;
+            }
+        }
+
+        return closestIndex;
     }
 
     /**
@@ -566,6 +672,7 @@ public class RouteServiceImpl implements RouteService {
                 oldSegment.endName(),
                 oldSegment.path(),
                 tolls, // Assign all tolls to this segment
+                oldSegment.distance(), // Keep the original distance
                 oldSegment.rawResponse()
             );
             segments.set(0, newSegment);
@@ -595,6 +702,7 @@ public class RouteServiceImpl implements RouteService {
                 oldSegment.endName(),
                 oldSegment.path(),
                 segmentTolls.get(i),
+                oldSegment.distance(), // Keep the original distance
                 oldSegment.rawResponse()
             );
             segments.set(i, newSegment);

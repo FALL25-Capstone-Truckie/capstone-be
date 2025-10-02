@@ -4,5 +4,7 @@ import java.util.List;
 
 public record SuggestRouteResponse(
         List<RouteSegmentResponse> segments,
-        Long totalToll
+        long totalTollAmount,
+        int totalTollCount,
+        double totalDistance  // in kilometers
 ) {}
