@@ -41,7 +41,6 @@ import capstone_project.service.services.order.order.*;
 import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +48,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -682,8 +682,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             List<GroupedVehicleAssignmentResponse.OrderDetailInfo> detailInfos =
                     getOrderDetailInfos(detailIds);
 
-            List<GroupedVehicleAssignmentResponse.VehicleSuggestionDTO> vehicleSuggestions =
-                    findSuitableVehiclesForGroup(detailIds, vehicleRule);
+            List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions =
+                    findSuitableVehiclesForGroup(detailIds, vehicleRule, vehicleRule.getVehicleTypeEntity() != null
+                            ? vehicleRule.getVehicleTypeEntity().getId() : null);
 
             BigDecimal totalWeight = detailIds.stream()
                     .map(id -> orderDetailEntityService.findEntityById(id).orElse(null))
@@ -798,7 +799,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
 
             try {
-                createInitialJourneyForAssignment(savedAssignment, orderDetailIds);
+                createInitialJourneyForAssignment(savedAssignment, orderDetailIds, groupAssignment.routeInfo());
             } catch (Exception e) {
                 log.error("Failed to create journey history for assignment {}: {}", savedAssignment.getId(), e.getMessage());
                 // continue without failing whole operation
@@ -849,7 +850,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             journeyHistory.setJourneyType("INITIAL");
             journeyHistory.setStatus(CommonStatusEnum.ACTIVE.name());
             journeyHistory.setVehicleAssignment(assignment);
-            journeyHistory.setTotalTollFee(routeInfo.totalTollFee());
+            // set total toll fee (BigDecimal -> Long)
+            journeyHistory.setTotalTollFee(routeInfo.totalTollFee() != null
+                    ? routeInfo.totalTollFee().setScale(0, RoundingMode.HALF_UP).longValue()
+                    : null);
 
             // Create journey segments from route info
             List<capstone_project.entity.order.order.JourneySegmentEntity> segments = new ArrayList<>();
@@ -865,8 +869,15 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 segment.setStartLongitude(segmentInfo.startLongitude());
                 segment.setEndLatitude(segmentInfo.endLatitude());
                 segment.setEndLongitude(segmentInfo.endLongitude());
-                segment.setDistanceMeters(segmentInfo.distanceMeters());
-                segment.setEstimatedTollFee(segmentInfo.estimatedTollFee());
+                // convert BigDecimal -> Integer (rounding)
+                segment.setDistanceMeters(segmentInfo.distanceMeters() != null
+                        ? segmentInfo.distanceMeters().setScale(0, RoundingMode.HALF_UP).intValue()
+                        : null);
+
+                // convert BigDecimal -> Long (rounding)
+                segment.setEstimatedTollFee(segmentInfo.estimatedTollFee() != null
+                        ? segmentInfo.estimatedTollFee().setScale(0, RoundingMode.HALF_UP).longValue()
+                        : null);
                 segment.setStatus("PENDING");
 
                 // Store path coordinates as JSON if your entity has this field
@@ -1088,10 +1099,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      * @param vehicleRule Quy tắc về loại xe
      * @return Danh sách gợi ý xe và tài xế phù hợp cho nhóm
      */
-    private List<GroupedVehicleAssignmentResponse.VehicleSuggestionDTO> findSuitableVehiclesForGroup(
-            List<UUID> detailIds, VehicleRuleEntity vehicleRule) {
+    private List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> findSuitableVehiclesForGroup(
+            List<UUID> detailIds, VehicleRuleEntity vehicleRule, UUID vehicleTypeId) {
 
-        List<GroupedVehicleAssignmentResponse.VehicleSuggestionDTO> vehicleSuggestions = new ArrayList<>();
+        List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions = new ArrayList<>();
 
         // Lấy danh sách xe phù hợp với loại xe từ rule
         VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(vehicleRule.getVehicleTypeEntity().getVehicleTypeName());
@@ -1131,17 +1142,27 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             List<DriverEntity> preferredDrivers = findPreferredDriversForVehicle(vehicle, allEligibleDrivers, vehicleTypeEnum);
 
             if (!preferredDrivers.isEmpty()) {
-                List<GroupedVehicleAssignmentResponse.DriverSuggestionDTO> driverSuggestions =
+                List<GroupedVehicleAssignmentResponse.DriverSuggestionResponse> driverSuggestions =
                         createDriverSuggestions(preferredDrivers);
 
                 // Đánh dấu xe được đề xuất nhất (xe đầu tiên trong danh sách)
                 boolean isRecommended = (vehicleCount == 0);
 
-                vehicleSuggestions.add(new GroupedVehicleAssignmentResponse.VehicleSuggestionDTO(
+                UUID finalVehicleTypeId = vehicle.getVehicleTypeEntity() != null
+                        ? vehicle.getVehicleTypeEntity().getId()
+                        : vehicleTypeId;
+
+                String vehicleTypeName = vehicle.getVehicleTypeEntity() != null
+                        ? vehicle.getVehicleTypeEntity().getVehicleTypeName()
+                        : vehicleRule.getVehicleTypeEntity().getVehicleTypeName();
+
+                vehicleSuggestions.add(new GroupedVehicleAssignmentResponse.VehicleSuggestionResponse(
                         vehicle.getId(),
                         vehicle.getLicensePlateNumber(),
                         vehicle.getModel(),
                         vehicle.getManufacturer(),
+                        finalVehicleTypeId,
+                        vehicleTypeName,
                         driverSuggestions,
                         isRecommended
                 ));
@@ -1162,30 +1183,33 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         List<DriverEntity> preferredDrivers = new ArrayList<>();
         final int MAX_DRIVERS_PER_VEHICLE = 4;
 
-        // Ưu tiên tài xế từ assignment gần đây nhất nếu có
+        // Collect last assignment drivers for this vehicle (preserve ordering)
         List<VehicleAssignmentEntity> pastAssignments = entityService.findAssignmentsByVehicleOrderByCreatedAtDesc(vehicle);
-
+        List<UUID> lastAssignmentDriverOrder = new ArrayList<>();
         if (!pastAssignments.isEmpty()) {
             VehicleAssignmentEntity lastAssignment = pastAssignments.get(0);
-            DriverEntity driver1 = lastAssignment.getDriver1();
-            DriverEntity driver2 = lastAssignment.getDriver2();
-
-            if (driver1 != null && CommonStatusEnum.ACTIVE.name().equals(driver1.getStatus()) &&
-                    driverService.isCheckClassDriverLicenseForVehicleType(driver1, vehicleTypeEnum) &&
-                    !entityService.existsActiveAssignmentForDriver(driver1.getId())) {
-                preferredDrivers.add(driver1);
-            }
-
-            if (driver2 != null && CommonStatusEnum.ACTIVE.name().equals(driver2.getStatus()) &&
-                    driverService.isCheckClassDriverLicenseForVehicleType(driver2, vehicleTypeEnum) &&
-                    !entityService.existsActiveAssignmentForDriver(driver2.getId()) &&
-                    !preferredDrivers.contains(driver2)) {
-                preferredDrivers.add(driver2);
-            }
+            if (lastAssignment.getDriver1() != null) lastAssignmentDriverOrder.add(lastAssignment.getDriver1().getId());
+            if (lastAssignment.getDriver2() != null) lastAssignmentDriverOrder.add(lastAssignment.getDriver2().getId());
         }
 
-        // Thêm tài xế khác từ danh sách tài xế hợp lệ
-        for (DriverEntity driver : allEligibleDrivers) {
+        // Build a map of driver -> rank (lower rank = lower tier / minimally sufficient)
+        Map<DriverEntity, Integer> rankMap = new HashMap<>();
+        for (DriverEntity d : allEligibleDrivers) {
+            rankMap.put(d, licenseClassRank(d.getLicenseClass()));
+        }
+
+        // Sort eligible drivers by (rank asc, lastAssignment preference)
+        List<DriverEntity> sortedCandidates = new ArrayList<>(allEligibleDrivers);
+        sortedCandidates.sort(Comparator
+                .comparingInt((DriverEntity d) -> rankMap.getOrDefault(d, Integer.MAX_VALUE))
+                .thenComparingInt(d -> {
+                    int idx = lastAssignmentDriverOrder.indexOf(d.getId());
+                    return idx >= 0 ? idx : Integer.MAX_VALUE;
+                })
+        );
+
+        // Select up to MAX_DRIVERS_PER_VEHICLE distinct drivers from sortedCandidates
+        for (DriverEntity driver : sortedCandidates) {
             if (preferredDrivers.size() >= MAX_DRIVERS_PER_VEHICLE) break;
             if (!preferredDrivers.contains(driver)) {
                 preferredDrivers.add(driver);
@@ -1195,10 +1219,19 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         return preferredDrivers;
     }
 
+    private int licenseClassRank(String licenseClass) {
+        if (licenseClass == null) return Integer.MAX_VALUE;
+        return switch (licenseClass.trim().toUpperCase()) {
+            case "B2" -> 0;
+            case "C" -> 1;
+            default -> 100;
+        };
+    }
+
     /**
      * Create driver suggestion DTOs from driver entities
      */
-    private List<GroupedVehicleAssignmentResponse.DriverSuggestionDTO> createDriverSuggestions(List<DriverEntity> drivers) {
+    private List<GroupedVehicleAssignmentResponse.DriverSuggestionResponse> createDriverSuggestions(List<DriverEntity> drivers) {
         // Thu thập tất cả driver ID để tính số chuyến đã hoàn thành
         Set<UUID> driverIds = drivers.stream().map(DriverEntity::getId).collect(Collectors.toSet());
 
@@ -1227,7 +1260,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             // Tính thời gian làm việc dựa trên ngày tạo hồ sơ của tài xế
             String workExperience = calculateWorkExperience(driver);
 
-            return new GroupedVehicleAssignmentResponse.DriverSuggestionDTO(
+            return new GroupedVehicleAssignmentResponse.DriverSuggestionResponse(
                     driver.getId(),
                     driver.getUser().getFullName(),
                     driver.getDriverLicenseNumber(),

@@ -10,5 +10,6 @@ public record RouteSegmentResponse(
         String endName,
         List<List<BigDecimal>> path,          // list of [lng, lat]
         List<TollResponse> tolls,
+        double distance,                       // in kilometers
         Map<String, Object> rawResponse  // optional raw vietmap response
 ) {}
