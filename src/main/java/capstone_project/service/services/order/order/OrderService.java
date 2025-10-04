@@ -50,7 +50,7 @@ public interface OrderService {
 
     SimpleOrderForCustomerResponse getSimplifiedOrderForCustomerByOrderId(UUID orderId);
 
-    StaffOrderForStaffResponse getOrderForStaffByOrderId(UUID orderId);
+    OrderForStaffResponse getOrderForStaffByOrderId(UUID orderId);
 
     boolean signContractAndOrder(UUID contractId);
 
@@ -60,4 +60,5 @@ public interface OrderService {
 
     GetOrderByJpaResponse getSimplifiedOrderForCustomerV2ByOrderId(UUID orderId);
 
+    OrderForDriverResponse getOrderForDriverByOrderId(UUID orderId);
 }

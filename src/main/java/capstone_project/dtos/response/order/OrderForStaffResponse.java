@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * Main response object for staff order with all enhanced information
  */
-public record StaffOrderForStaffResponse(
+public record OrderForStaffResponse(
     StaffOrderResponse order,
     SimpleContractResponse contract,
     List<SimpleTransactionResponse> transactions

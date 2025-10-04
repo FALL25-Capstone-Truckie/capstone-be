@@ -1,25 +1,22 @@
 package capstone_project.dtos.response.order;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
+/**
+ * DTO cho lịch sử hành trình (JourneyHistory) với đầy đủ thông tin về các segment
+ */
 public record JourneyHistoryResponse(
         UUID id,
-        BigDecimal startLocation,
-        BigDecimal endLocation,
-        LocalDateTime startTime,
-        LocalDateTime endTime,
+        String journeyName,
+        String journeyType,
         String status,
-        BigDecimal totalDistance,
-        Boolean isReportedIncident,
-        Boolean isRouteChanged,
-        String routeChangeReason,
-        String originalRouteJson,
-        String currentRouteJson,
-        UUID previousJourneyId,
+        Long totalTollFee,
+        String reasonForReroute,
         UUID vehicleAssignmentId,
+        List<JourneySegmentResponse> journeySegments,
         LocalDateTime createdAt,
         LocalDateTime modifiedAt
 ) {}

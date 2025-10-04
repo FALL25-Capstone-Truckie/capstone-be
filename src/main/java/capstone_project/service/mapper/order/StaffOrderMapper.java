@@ -54,7 +54,7 @@ public class StaffOrderMapper {
     // PhotoCompletionService may not exist in every project; if not present remove this field and helper below
     private final PhotoCompletionService photoCompletionService;
 
-    public StaffOrderForStaffResponse toStaffOrderForStaffResponse(
+    public OrderForStaffResponse toStaffOrderForStaffResponse(
             GetOrderResponse orderResponse,
             ContractResponse contractResponse,
             List<TransactionResponse> transactionResponses
@@ -87,7 +87,7 @@ public class StaffOrderMapper {
                 .map(this::toSimpleTransactionResponse)
                 .collect(Collectors.toList());
 
-        return new StaffOrderForStaffResponse(
+        return new OrderForStaffResponse(
                 staffOrderResponse,
                 simpleContractResponse,
                 simpleTransactionResponses

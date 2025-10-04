@@ -40,12 +40,6 @@ public class JourneySegmentEntity extends BaseEntity {
     @Column(name = "distance_meters")
     private Integer distanceMeters;
 
-    @Column(name = "duration_seconds")
-    private Integer durationSeconds;
-
-    @Column(name = "route_geometry", length = Integer.MAX_VALUE)
-    private String routeGeometry; // Lưu dạng encoded polyline
-
     @Column(name = "status") // PENDING, COMPLETED, ACTIVE
     private String status;
 
