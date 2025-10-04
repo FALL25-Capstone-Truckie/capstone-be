@@ -29,10 +29,7 @@ import capstone_project.repository.entityServices.order.order.OrderSizeEntitySer
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
-import capstone_project.service.mapper.order.OrderDetailMapper;
-import capstone_project.service.mapper.order.OrderMapper;
-import capstone_project.service.mapper.order.SimpleOrderMapper;
-import capstone_project.service.mapper.order.StaffOrderMapper;
+import capstone_project.service.mapper.order.*;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
@@ -70,6 +67,7 @@ public class OrderServiceImpl implements OrderService {
     private final SimpleOrderMapper simpleOrderMapper;
     private final UserContextUtils userContextUtils;
     private final StaffOrderMapper staffOrderMapper;
+    private final DriverOrderMapper driverOrderMapper;
     private final PenaltyHistoryEntityService penaltyHistoryEntityService;
     private final CameraTrackingEntityService cameraTrackingEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
@@ -550,7 +548,7 @@ public class OrderServiceImpl implements OrderService {
 
 
     @Override
-    public StaffOrderForStaffResponse getOrderForStaffByOrderId(UUID orderId) {
+    public OrderForStaffResponse getOrderForStaffByOrderId(UUID orderId) {
         log.info("Getting order for staff with ID: {}", orderId);
 
         // Get the basic order information
@@ -570,6 +568,73 @@ public class OrderServiceImpl implements OrderService {
         // Use our mapper to convert to staff order response
         return staffOrderMapper.toStaffOrderForStaffResponse(
                 orderResponse,
+                contractResponse,
+                transactionResponses
+        );
+    }
+
+    @Override
+    public OrderForDriverResponse getOrderForDriverByOrderId(UUID orderId) {
+        GetOrderResponse getOrderResponse = getOrderById(orderId);
+
+        Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
+
+        // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
+        Set<UUID> processed = new HashSet<>();
+        List<GetOrderDetailResponse> details = Optional.ofNullable(getOrderResponse)
+                .map(GetOrderResponse::orderDetails)
+                .orElse(Collections.emptyList());
+
+        for (GetOrderDetailResponse detail : details) {
+            if (detail == null) continue;
+            var va = detail.vehicleAssignmentId();
+            if (va == null) continue;
+
+            UUID vehicleAssignmentId;
+            try {
+                vehicleAssignmentId = va.id();
+            } catch (Exception e) {
+                log.warn("Invalid vehicleAssignmentId structure for order {}: {}", orderId, e.getMessage());
+                continue;
+            }
+            if (vehicleAssignmentId == null) continue;
+            if (!processed.add(vehicleAssignmentId)) continue; // skip duplicates
+
+            try {
+                GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(vehicleAssignmentId);
+                if (issueImageResponse != null) {
+                    issuesByVehicleAssignment.put(vehicleAssignmentId, issueImageResponse);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fetch issue images for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
+            }
+
+            try {
+                List<PhotoCompletionResponse> photoCompletions = photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId);
+                if (photoCompletions != null && !photoCompletions.isEmpty()) {
+                    photosByVehicleAssignment.put(vehicleAssignmentId, photoCompletions);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fetch photo completions for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
+            }
+        }
+
+        // contract / transactions same as before
+        ContractResponse contractResponse = null;
+        List<TransactionResponse> transactionResponses = new ArrayList<>();
+        Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
+        if (contractEntity.isPresent()) {
+            contractResponse = contractService.getContractById(contractEntity.get().getId());
+            transactionResponses = payOSTransactionService.getTransactionsByContractId(contractEntity.get().getId());
+        }
+
+        List<GetIssueImageResponse> issueImageResponsesList = new ArrayList<>(issuesByVehicleAssignment.values());
+
+        return driverOrderMapper.toOrderForDriverResponse(
+                getOrderResponse,
+                issueImageResponsesList,
+                photosByVehicleAssignment,
                 contractResponse,
                 transactionResponses
         );

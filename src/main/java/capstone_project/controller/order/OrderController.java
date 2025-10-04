@@ -85,12 +85,12 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @GetMapping("/get-orders-for-cus-by-user-id/{userId}")
-    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrdersForCusByUserId(@PathVariable UUID userId
-    ) {
-        final var result = orderService.getOrdersForCusByUserId(userId);
-        return ResponseEntity.ok(ApiResponse.ok(result));
-    }
+//    @GetMapping("/get-orders-for-cus-by-user-id/{userId}")
+//    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrdersForCusByUserId(@PathVariable UUID userId
+//    ) {
+//        final var result = orderService.getOrdersForCusByUserId(userId);
+//        return ResponseEntity.ok(ApiResponse.ok(result));
+//    }
 
     @GetMapping("/get-by-id/{orderId}")
     public ResponseEntity<ApiResponse<GetOrderResponse>> getOrderById(@PathVariable UUID orderId
@@ -113,7 +113,7 @@ public class OrderController {
 
     @GetMapping("/get-order-for-staff-by-order-id/{orderId}")
     @PreAuthorize("hasRole('STAFF') or hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<StaffOrderForStaffResponse>> getOrderForStaffByOrderId(@PathVariable UUID orderId) {
+    public ResponseEntity<ApiResponse<OrderForStaffResponse>> getOrderForStaffByOrderId(@PathVariable UUID orderId) {
         final var result = orderService.getOrderForStaffByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
@@ -131,9 +131,9 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @GetMapping("/get-all-data-for-order/{orderId}")
-    public ResponseEntity<ApiResponse<GetOrderByJpaResponse>> getSimplifiedOrderForCustomerV2ByOrderId(@PathVariable UUID orderId) {
-        final var result = orderService.getSimplifiedOrderForCustomerV2ByOrderId(orderId);
+    @GetMapping("/get-order-for-driver-by-order-id/{orderId}")
+    public ResponseEntity<ApiResponse<OrderForDriverResponse>> getOrderForDriverByOrderId(@PathVariable UUID orderId) {
+        final var result = orderService.getOrderForDriverByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }

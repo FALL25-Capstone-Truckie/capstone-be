@@ -31,14 +31,14 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SimpleOrderMapper {
+public class DriverOrderMapper {
     private final UserEntityService userEntityService;
     private final VehicleEntityService vehicleEntityService;
     private final OrderSealService orderSealService;
     private final JourneyHistoryService journeyHistoryService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
-    public SimpleOrderForCustomerResponse toSimpleOrderForCustomerResponse(
+    public OrderForDriverResponse toOrderForDriverResponse(
             GetOrderResponse orderResponse,
             List<GetIssueImageResponse> issueImageResponses,
             Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses,
@@ -79,10 +79,8 @@ public class SimpleOrderMapper {
                 effectiveTotal
         );
 
-        return new SimpleOrderForCustomerResponse(
-                simpleOrderResponse,
-                simpleContractResponse,
-                simpleTransactionResponses
+        return new OrderForDriverResponse(
+                simpleOrderResponse
         );
     }
 
@@ -275,10 +273,7 @@ public class SimpleOrderMapper {
             try {
                 UUID vehicleAssignmentId = detail.vehicleAssignmentId().id();
                 List<JourneyHistoryResponse> raw = journeyHistoryService.getByVehicleAssignmentId(vehicleAssignmentId);
-                if (raw != null) {
-                    // Filter journey histories for customer view (only showing pickup, delivery, and intermediate points)
-                    journeyHistories = filterJourneyHistoriesForCustomer(raw);
-                }
+                if (raw != null) journeyHistories = raw;
             } catch (Exception e) {
                 // Keep journeyHistories as empty list
             }
@@ -560,74 +555,5 @@ public class SimpleOrderMapper {
 
         List<String> images = response.imageUrl() != null ? new ArrayList<>(response.imageUrl()) : Collections.emptyList();
         return new SimpleIssueImageResponse(simpleIssue, images);
-    }
-
-    /**
-     * Filter journey histories for customer view
-     * Only include segments related to pickup, delivery, or intermediate points between them
-     * Excludes carrier-related segments that customers don't need to see
-     */
-    private List<JourneyHistoryResponse> filterJourneyHistoriesForCustomer(List<JourneyHistoryResponse> rawHistories) {
-        if (rawHistories == null || rawHistories.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        return rawHistories.stream()
-                .map(history -> {
-                    // Filter journey segments to only include customer-relevant ones
-                    List<JourneySegmentResponse> filteredSegments = filterJourneySegmentsForCustomer(history.journeySegments());
-
-                    // Create new JourneyHistoryResponse with filtered segments
-                    return new JourneyHistoryResponse(
-                            history.id(),
-                            history.journeyName(),
-                            history.journeyType(),
-                            history.status(),
-                            history.totalTollFee(),
-                            history.reasonForReroute(),
-                            history.vehicleAssignmentId(),
-                            filteredSegments,
-                            history.createdAt(),
-                            history.modifiedAt()
-                    );
-                })
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Filter journey segments to only include those related to pickup, delivery, or intermediate points
-     * The filtering logic uses segment names to identify relevant points for customers
-     */
-    private List<JourneySegmentResponse> filterJourneySegmentsForCustomer(List<JourneySegmentResponse> segments) {
-        if (segments == null || segments.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        return segments.stream()
-                .filter(segment -> {
-                    // Keep segments that contain keywords related to customer-relevant points
-                    String startPointLower = segment.startPointName() != null ? segment.startPointName().toLowerCase() : "";
-                    String endPointLower = segment.endPointName() != null ? segment.endPointName().toLowerCase() : "";
-
-                    // Keywords that indicate customer-relevant points
-                    boolean isPickupRelated = startPointLower.contains("pickup") || endPointLower.contains("pickup") ||
-                                             startPointLower.contains("điểm đón") || endPointLower.contains("điểm đón");
-
-                    boolean isDeliveryRelated = startPointLower.contains("delivery") || endPointLower.contains("delivery") ||
-                                               startPointLower.contains("điểm giao") || endPointLower.contains("điểm giao") ||
-                                               startPointLower.contains("destination") || endPointLower.contains("destination");
-
-                    boolean isCustomerLocation = startPointLower.contains("customer") || endPointLower.contains("customer") ||
-                                               startPointLower.contains("khách hàng") || endPointLower.contains("khách hàng");
-
-                    // Exclude segments that contain carrier-related keywords
-                    boolean isCarrierRelated = startPointLower.contains("carrier") || endPointLower.contains("carrier") ||
-                                              startPointLower.contains("depot") || endPointLower.contains("depot") ||
-                                              startPointLower.contains("garage") || endPointLower.contains("garage") ||
-                                              startPointLower.contains("parking") || endPointLower.contains("parking");
-
-                    return (isPickupRelated || isDeliveryRelated || isCustomerLocation) && !isCarrierRelated;
-                })
-                .collect(Collectors.toList());
     }
 }
