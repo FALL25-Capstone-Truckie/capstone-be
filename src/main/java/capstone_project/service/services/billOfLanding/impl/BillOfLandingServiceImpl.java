@@ -1247,6 +1247,11 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 log.debug("No contract found for order {}: {}", order.getId(), ex.getMessage());
             }
 
+            Paragraph staffInCharge = new Paragraph("Người phụ trách / Staff in charge: " + staff.getFullName() + " (" + staff.getPhoneNumber() + ")")
+                    .setFontSize(TABLE_CELL_FONT_SIZE)
+                    .setMarginBottom(6);
+            document.add(staffInCharge);
+
             // Vehicle and driver info block
             Paragraph vehicleTitle = new Paragraph("THÔNG TIN PHƯƠNG TIỆN VÀ TÀI XẾ")
                     .setBold()
@@ -1274,9 +1279,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
 
             vehicleTable.addCell(new Cell().add(new Paragraph("Loại xe / Vehicle type")));
             vehicleTable.addCell(new Cell().add(new Paragraph(vehicleTypeName)));
-
-            vehicleTable.addCell(new Cell().add(new Paragraph("Trọng tải / Weight capacity")));
-            vehicleTable.addCell(new Cell().add(new Paragraph(weightCapacity)));
 
             // Driver 1 information
             String driver1Name = "N/A";
@@ -1351,9 +1353,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
             document.add(summaryTable);
             document.add(new Paragraph("").setMarginBottom(8));
 
-            // Add approval information and signature
-            addApprovalSection(document, staff);
-
             // Signatures
             addSignatureBlocks(document);
 
@@ -1384,40 +1383,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
         pointsTable.addCell(new Cell().add(new Paragraph("Điểm giao hàng: 456 Đường DEF, Phường 2, Quận 3").setFontSize(TABLE_CELL_FONT_SIZE)));
 
         document.add(pointsTable);
-        document.add(new Paragraph("").setMarginBottom(10));
-    }
-
-    private void addApprovalSection(Document document, UserEntity staff) {
-        // Placeholder for approval section
-        Paragraph sectionTitle = new Paragraph("Phê duyệt / Approval")
-                .setBold()
-                .setFontSize(SECTION_TITLE_FONT_SIZE)
-                .setMarginBottom(5)
-                .setKeepTogether(true);
-        document.add(sectionTitle);
-
-        // Approval table
-        Table approvalTable = new Table(UnitValue.createPercentArray(2)).useAllAvailableWidth();
-        approvalTable.setBorder(new SolidBorder(ColorConstants.BLACK, 1));
-        approvalTable.setKeepTogether(true);
-
-        // Header row
-        Cell roleHeaderCell = new Cell().add(new Paragraph("Chức vụ / Position").setBold());
-        Cell nameHeaderCell = new Cell().add(new Paragraph("Họ tên / Name").setBold());
-        roleHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        nameHeaderCell.setBackgroundColor(ColorConstants.LIGHT_GRAY);
-        approvalTable.addCell(roleHeaderCell);
-        approvalTable.addCell(nameHeaderCell);
-
-        // Staff role and name
-        approvalTable.addCell(new Cell().add(new Paragraph("Nhân viên giao nhận / Delivery Staff")));
-        approvalTable.addCell(new Cell().add(new Paragraph(staff.getFullName())));
-
-        // Signature line
-        approvalTable.addCell(new Cell().add(new Paragraph("Chữ ký / Signature").setBold()));
-        approvalTable.addCell(new Cell().add(new Paragraph("")));
-
-        document.add(approvalTable);
         document.add(new Paragraph("").setMarginBottom(10));
     }
 }
