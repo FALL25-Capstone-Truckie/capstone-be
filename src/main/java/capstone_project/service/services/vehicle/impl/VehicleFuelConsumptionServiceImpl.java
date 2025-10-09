@@ -1,6 +1,7 @@
 package capstone_project.service.services.vehicle.impl;
 
 import capstone_project.common.enums.ErrorEnum;
+import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionCreateRequest;
 import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionEndReadingRequest;
@@ -8,6 +9,7 @@ import capstone_project.dtos.request.vehicle.VehicleFuelConsumptionInvoiceReques
 import capstone_project.dtos.response.vehicle.VehicleFuelConsumptionResponse;
 import capstone_project.entity.order.order.VehicleFuelConsumptionEntity;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
+import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.vehicle.VehicleFuelConsumptionService;
@@ -31,6 +33,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final CloudinaryService cloudinaryService;
+    private final OrderEntityService orderEntityService;
 
     @Override
     @Transactional
@@ -58,6 +61,13 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
                 .build();
 
         final var savedEntity = vehicleFuelConsumptionEntityService.save(entity);
+
+        final var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignmentEntity.getId());
+        if (orderOpt.isPresent()) {
+            final var orderEntity = orderOpt.get();
+            orderEntity.setStatus(OrderStatusEnum.PICKING_UP.name());
+            orderEntityService.save(orderEntity);
+        }
 
         return mapToResponse(savedEntity);
     }

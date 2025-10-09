@@ -7,6 +7,8 @@ import java.util.List;
 public interface SealService {
     GetSealResponse createSeal(String description);
 
+    GetSealResponse createSealWithCode(String sealCode, String description);
+
     List<GetSealResponse> getAllSeals();
 
 }

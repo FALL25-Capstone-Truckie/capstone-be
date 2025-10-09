@@ -67,8 +67,24 @@ public class OrderSealServiceImpl implements OrderSealService {
         // Tự động tạo mô tả
         String description = "Seal được tạo cho chuyến " + vehicleAssignment.getTrackingCode();
 
-        // Tạo mới Seal
-        GetSealResponse getSealResponse = sealService.createSeal(description);
+        // Kiểm tra seal code từ request
+        if (orderSealRequest.sealCode() == null || orderSealRequest.sealCode().isEmpty()) {
+            throw new BadRequestException(
+                    "Mã seal không được để trống",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+
+        // Tạo seal với mã người dùng cung cấp
+        GetSealResponse getSealResponse;
+        try {
+            getSealResponse = sealService.createSealWithCode(orderSealRequest.sealCode(), description);
+            log.info("Đã tạo Seal mới với mã: {}", orderSealRequest.sealCode());
+        } catch (IllegalArgumentException e) {
+            // Nếu mã đã tồn tại, ném ngoại lệ
+            throw new BadRequestException(
+                    "Mã seal đã tồn tại: " + orderSealRequest.sealCode(),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
 
         // Upload hình ảnh và lấy URL
         String imageUrl = null;
@@ -90,13 +106,22 @@ public class OrderSealServiceImpl implements OrderSealService {
                     ErrorEnum.INVALID_REQUEST.getErrorCode());
         }
 
-        // Tạo OrderSealEntity với ảnh đã upload
+        // Lấy entity của Seal vừa tạo từ database
+        SealEntity sealEntity = sealEntityService.findBySealCode(getSealResponse.sealCode());
+        if (sealEntity == null) {
+            log.error("Không tìm thấy Seal vừa tạo với mã: {}", getSealResponse.sealCode());
+            throw new NotFoundException(
+                    "Không tìm thấy Seal vừa tạo với mã: " + getSealResponse.sealCode(),
+                    ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        // Tạo OrderSealEntity với ảnh đã upload và Seal vừa tạo
         OrderSealEntity orderSealEntity = OrderSealEntity.builder()
                 .description(description)
                 .sealDate(LocalDateTime.now()) // Tự động set thời gian hiện tại
                 .sealAttachedImage(imageUrl) // Lưu URL của ảnh
                 .status(CommonStatusEnum.ACTIVE.name())
-                .seal(sealMapper.toSealEntity(getSealResponse))
+                .seal(sealEntity) // Sử dụng entity từ database
                 .vehicleAssignment(vehicleAssignment)
                 .build();
 

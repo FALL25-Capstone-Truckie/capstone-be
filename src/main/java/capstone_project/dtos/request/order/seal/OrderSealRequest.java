@@ -10,6 +10,8 @@ public record OrderSealRequest(
     UUID vehicleAssignmentId,
     
     @NotNull(message = "Hình ảnh seal không được bỏ trống")
-    MultipartFile sealImage
+    MultipartFile sealImage,
+
+    String sealCode
 ) {
 }

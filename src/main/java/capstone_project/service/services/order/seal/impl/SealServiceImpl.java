@@ -43,6 +43,23 @@ public class SealServiceImpl implements SealService {
         return sealMapper.toGetSealResponseList(sealEntityService.findAll());
     }
 
+    @Override
+    public GetSealResponse createSealWithCode(String sealCode, String description) {
+        // Verify if the seal code is already in use
+        if (sealEntityService.findBySealCode(sealCode) != null) {
+            log.warn("Mã seal đã tồn tại: {}", sealCode);
+            throw new IllegalArgumentException("Mã seal đã tồn tại: " + sealCode);
+        }
+
+        SealEntity sealEntity = SealEntity.builder()
+                .sealCode(sealCode)
+                .description(description)
+                .status(CommonStatusEnum.ACTIVE.name())
+                .build();
+
+        SealEntity savedEntity = sealEntityService.save(sealEntity);
+        return sealMapper.toGetSealResponse(savedEntity);
+    }
 
     private String generateUniqueSealCode() {
         int maxAttempts = 10;
