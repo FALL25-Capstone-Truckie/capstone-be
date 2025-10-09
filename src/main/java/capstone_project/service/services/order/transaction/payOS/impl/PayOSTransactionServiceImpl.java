@@ -23,6 +23,7 @@ import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -55,6 +56,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final ObjectMapper objectMapper;
 
     @Override
+    @Transactional
     public TransactionResponse createTransaction(UUID contractId) {
         log.info("Creating transaction for contract {}", contractId);
 
@@ -130,6 +132,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
 
     @Override
+    @Transactional
     public TransactionResponse createDepositTransaction(UUID contractId) {
         log.info("Creating transaction for contract {}", contractId);
 
@@ -356,6 +359,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     }
 
     @Override
+    @Transactional
     public void handleWebhook(String rawCallbackPayload) {
         log.info("Handling webhook with payload: {}", rawCallbackPayload);
         try {
@@ -460,7 +464,10 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             }
         }
 
-        orderEntityService.save(order);
+        if (TransactionEnum.valueOf(transaction.getStatus()) == TransactionEnum.REFUNDED) {
+            orderEntityService.save(order);
+        }
+
         contractEntityService.save(contract);
         log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
     }

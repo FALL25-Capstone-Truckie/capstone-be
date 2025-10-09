@@ -317,7 +317,10 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
             }
         }
 
-        orderEntityService.save(order);
+        if (TransactionEnum.valueOf(transaction.getStatus()) == TransactionEnum.REFUNDED) {
+            orderEntityService.save(order);
+        }
+
         contractEntityService.save(contract);
         log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
     }
