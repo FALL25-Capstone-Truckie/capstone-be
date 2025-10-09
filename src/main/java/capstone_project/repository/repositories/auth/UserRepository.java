@@ -61,4 +61,12 @@ public interface UserRepository extends BaseRepository<UserEntity> {
             FROM users o
             """, nativeQuery = true)
     int countAllUsers();
+
+    @Query(value = """
+            SELECT r.role_name, COUNT(u.id)
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            GROUP BY r.role_name;
+            """, nativeQuery = true)
+    List<Object[]> countUsersByRole();
 }

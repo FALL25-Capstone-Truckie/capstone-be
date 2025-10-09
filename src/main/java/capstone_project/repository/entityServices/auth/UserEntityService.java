@@ -54,4 +54,6 @@ public interface UserEntityService extends BaseEntityService<UserEntity, UUID> {
     List<Object[]> countAllByUserStatus();
 
     int countAllUsers();
+
+    List<Object[]> countUsersByRole();
 }

@@ -101,4 +101,14 @@ public class OrderEntityServiceImpl implements OrderEntityService {
     public Optional<OrderEntity> findVehicleAssignmentOrder(UUID assignmentId) {
         return orderRepository.findVehicleAssignmentOrder(assignmentId);
     }
+
+    @Override
+    public List<Object[]> topSenderByMonthAndYear(Integer month, Integer year, int amount) {
+        return orderRepository.topSenderByMonthAndYear(month, year, amount);
+    }
+
+    @Override
+    public List<Object[]> topDriverByMonthAndYear(Integer month, Integer year, int amount) {
+        return orderRepository.topDriverByMonthAndYear(month, year, amount);
+    }
 }

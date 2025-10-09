@@ -26,7 +26,6 @@ public record ContractRequest(
 
         String description,
 
-        @NotBlank(message = "Attach file URL must not be blank")
         String attachFileUrl,
 
         @NotBlank(message = "Order ID must not be blank")
