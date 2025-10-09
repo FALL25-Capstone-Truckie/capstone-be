@@ -1,7 +1,7 @@
 package capstone_project.controller.admin.dashboard;
 
 import capstone_project.dtos.response.common.ApiResponse;
-import capstone_project.dtos.response.dashboard.MonthlyOrderCount;
+import capstone_project.dtos.response.dashboard.*;
 import capstone_project.service.services.dashboard.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -74,9 +74,61 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @GetMapping("/count-all-users")
-    public ResponseEntity<ApiResponse<Integer>> countAllUsers() {
-        final var result = dashboardService.countAllUsers();
+    @GetMapping("/count-users-by-role")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> countUsersByRole() {
+        final var result = dashboardService.countUsersByRole();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/new-customer-by-month-over-year")
+    public ResponseEntity<ApiResponse<List<MonthlyNewCustomerCountResponse>>> newCustomerByMonthOverYear(@RequestParam int year) {
+        final var result = dashboardService.newCustomerByMonthOverYear(year);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/customer-growth-rate-over-year")
+    public ResponseEntity<ApiResponse<List<CustomerGrowthRateByYearResponse>>> getCustomerGrowthRateByYear(@RequestParam int year) {
+        final var result = dashboardService.getCustomerGrowthRateByYear(year);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // xử lý cả đồng hạng nữa nên là có thể trả về nhiều hơn amount
+    @GetMapping("/top-sender-by-month-and-year")
+    public ResponseEntity<ApiResponse<List<TopSenderResponse>>> topSenderByMonthAndYear(@RequestParam(required = false) Integer month,
+                                                                                        @RequestParam(required = false) Integer year,
+                                                                                        @RequestParam int amount) {
+        final var result = dashboardService.topSenderByMonthAndYear(month, year, amount);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/top-driver-by-month-and-year")
+    public ResponseEntity<ApiResponse<List<TopDriverResponse>>> topDriverByMonthAndYear(@RequestParam(required = false) Integer month,
+                                                                                        @RequestParam(required = false) Integer year,
+                                                                                        @RequestParam int amount) {
+        final var result = dashboardService.topDriverByMonthAndYear(month, year, amount);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/on-time-vs-late-deliveries-with-percentage")
+    public ResponseEntity<ApiResponse<OnTImeVSLateDeliveriesResponse>> getOnTimeVsLateDeliveriesWithPercentage(@RequestParam(required = false) Integer month,
+                                                                                                               @RequestParam(required = false) Integer year) {
+        final var result = dashboardService.getOnTimeVsLateDeliveriesWithPercentage(month, year);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/top-driver-on-time-deliveries-with-percentage")
+    public ResponseEntity<ApiResponse<List<OnTimeDeliveriesDriverResponse>>> topOnTimeDeliveriesByDriversWithPercentage(@RequestParam(required = false) Integer month,
+                                                                                                                        @RequestParam(required = false) Integer year,
+                                                                                                                        @RequestParam int amount) {
+        final var result = dashboardService.topOnTimeDeliveriesByDriversWithPercentage(month, year, amount);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/top-driver-late-deliveries-with-percentage")
+    public ResponseEntity<ApiResponse<List<LateDeliveriesDriverResponse>>> topLateDeliveriesByDriversWithPercentage(@RequestParam(required = false) Integer month,
+                                                                                                         @RequestParam(required = false) Integer year,
+                                                                                                         @RequestParam int amount) {
+        final var result = dashboardService.topLateDeliveriesByDriversWithPercentage(month, year, amount);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }

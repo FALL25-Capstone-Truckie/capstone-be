@@ -1,6 +1,6 @@
 package capstone_project.service.services.dashboard;
 
-import capstone_project.dtos.response.dashboard.MonthlyOrderCount;
+import capstone_project.dtos.response.dashboard.*;
 
 import java.util.List;
 import java.util.Map;
@@ -27,6 +27,25 @@ public interface DashboardService {
 
     Map<String, Long> countAllByUserStatus();
 
+    Map<String, Long> countUsersByRole();
+
     Integer countAllUsers();
+
+    List<MonthlyNewCustomerCountResponse> newCustomerByMonthOverYear(int year);
+
+    List<CustomerGrowthRateByYearResponse> getCustomerGrowthRateByYear(int year);
+
+    List<TopSenderResponse> topSenderByMonthAndYear(Integer month, Integer year, int amount);
+
+    List<TopDriverResponse> topDriverByMonthAndYear(Integer month, Integer year, int amount);
+
+    OnTImeVSLateDeliveriesResponse getOnTimeVsLateDeliveriesWithPercentage(Integer month, Integer year);
+
+    List<OnTimeDeliveriesDriverResponse> topOnTimeDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount);
+
+    List<LateDeliveriesDriverResponse> topLateDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount);
+
+//    List<MonthlyRevenue> totalRevenueByMonthOverYear(int year);
+
 
 }

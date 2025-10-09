@@ -20,4 +20,10 @@ public interface OrderDetailEntityService extends BaseEntityService<OrderDetailE
      * @return Optional containing the OrderDetailEntity if found, or empty Optional otherwise
      */
     Optional<OrderDetailEntity> findByTrackingCode(String trackingCode);
+
+    List<Object[]> getOnTimeVsLateDeliveriesWithPercentage(Integer month, Integer year);
+
+    List<Object[]> topOnTimeDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount);
+
+    List<Object[]> topLateDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount);
 }
