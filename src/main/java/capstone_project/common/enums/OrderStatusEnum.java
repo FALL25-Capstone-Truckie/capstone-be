@@ -10,7 +10,7 @@ public enum OrderStatusEnum {
     ON_PLANNING,
     ASSIGNED_TO_DRIVER,
     DRIVER_CONFIRM,
-    FULLY_PURCHASED,
+    FULLY_PAID,
     PICKING_UP,
     SEAL_COMPLETED,
     PICKED_UP,
