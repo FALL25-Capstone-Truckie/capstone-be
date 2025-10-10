@@ -47,6 +47,11 @@ public class CustomerEntityServiceImpl implements CustomerEntityService {
     }
 
     @Override
+    public List<Object[]> getTopCustomersByRevenue(int amount) {
+        return customerRepository.getTopCustomersByRevenue(amount);
+    }
+
+    @Override
     public CustomerEntity save(CustomerEntity entity) {
         return customerRepository.save(entity);
     }

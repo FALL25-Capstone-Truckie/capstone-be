@@ -6,6 +6,7 @@ import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
+import capstone_project.repository.entityServices.order.transaction.TransactionEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.service.services.dashboard.DashboardService;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 import static capstone_project.common.enums.ErrorEnum.NOT_FOUND;
@@ -30,6 +32,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final CustomerEntityService customerEntityService;
     private final DriverEntityService driverEntityService;
+    private final TransactionEntityService transactionEntityService;
 
     @Override
     public int countAllOrder() {
@@ -404,6 +407,107 @@ public class DashboardServiceImpl implements DashboardService {
             topDrivers.add(new LateDeliveriesDriverResponse(driverId.toString(), driverName, totalDeliveries, lateDeliveries, latePercentage));
         }
         return topDrivers;
+    }
+
+    @Override
+    public BigDecimal getTotalRevenueInYear() {
+        log.info("In DashboardServiceImpl.getTotalRevenueInYear()");
+
+        return transactionEntityService.getTotalRevenueInYear();
+    }
+
+    @Override
+    public Map<Integer, Long> getTotalRevenueCompareYear() {
+        log.info("In DashboardServiceImpl.getTotalRevenueCompareYear()");
+
+        List<Object[]> results = transactionEntityService.getTotalRevenueCompareYear();
+
+        if (results.isEmpty()) {
+            log.info("[getTotalRevenueCompareYear] No revenue data found for the current and previous year");
+            throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
+        }
+
+        Map<Integer, Long> revenueByYear = new HashMap<>();
+
+        for (Object[] row : results) {
+            Integer year = ((Number) row[0]).intValue();
+            Long total = ((Number) row[1]).longValue();
+            revenueByYear.put(year, total);
+        }
+        return revenueByYear;
+    }
+
+    @Override
+    public Map<Integer, Long> getTotalRevenueByMonth() {
+        log.info("In DashboardServiceImpl.getTotalRevenueByMonth()");
+
+        List<Object[]> results = transactionEntityService.getTotalRevenueByMonth();
+
+        if (results.isEmpty()) {
+            log.info("[getTotalRevenueByMonth] No revenue data found for the current year");
+            throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
+        }
+
+        Map<Integer, Long> revenueByMonth = new HashMap<>();
+
+        for (Object[] row : results) {
+            Integer month = ((Number) row[0]).intValue();
+            Long total = ((Number) row[1]).longValue();
+            revenueByMonth.put(month, total);
+        }
+        return revenueByMonth;
+    }
+
+    @Override
+    public Map<Integer, Long> getTotalRevenueByLast4Weeks() {
+        log.info("In DashboardServiceImpl.getTotalRevenueByLast4Weeks()");
+
+        List<Object[]> results = transactionEntityService.getTotalRevenueByLast4Weeks();
+
+        if (results.isEmpty()) {
+            log.info("[getTotalRevenueByLast4Weeks] No revenue data found for the last 4 weeks");
+            throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
+        }
+
+        Map<Integer, Long> revenueByWeek = new HashMap<>();
+
+        for (Object[] row : results) {
+            String weekLabel = (String) row[0];
+            Integer weekNumber = Integer.parseInt(weekLabel.split("-")[1]);
+            Long total = ((Number) row[1]).longValue();
+            revenueByWeek.put(weekNumber, total);
+        }
+        return revenueByWeek;
+    }
+
+    @Override
+    public List<TopPayCustomerResponse> getTopCustomersByRevenue(int amount) {
+        log.info("In DashboardServiceImpl.getTopCustomersByRevenue()");
+
+        if (amount <= 0) {
+            log.error("[getTopCustomersByRevenue] Invalid amount: {}", amount);
+            throw new BadRequestException(NULL.getMessage(), NULL.getErrorCode());
+        }
+
+        List<Object[]> results = customerEntityService.getTopCustomersByRevenue(amount);
+
+        if (results.isEmpty()) {
+            log.warn("[getTopCustomersByRevenue] No customer data found");
+            throw new BadRequestException(NOT_FOUND.getMessage(), NOT_FOUND.getErrorCode());
+        }
+
+        List<TopPayCustomerResponse> topCustomers = new ArrayList<>();
+
+        for (Object[] row : results) {
+            UUID customerId = UUID.fromString(row[0].toString());
+            String customerName = (String) row[1];
+            String companyName = (String) row[2];
+            BigDecimal totalRevenue = (BigDecimal) row[3];
+
+            topCustomers.add(new TopPayCustomerResponse(customerId.toString(), customerName, companyName, totalRevenue));
+        }
+
+        return topCustomers;
     }
 
 }

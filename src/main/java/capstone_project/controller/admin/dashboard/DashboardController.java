@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -126,9 +127,40 @@ public class DashboardController {
 
     @GetMapping("/top-driver-late-deliveries-with-percentage")
     public ResponseEntity<ApiResponse<List<LateDeliveriesDriverResponse>>> topLateDeliveriesByDriversWithPercentage(@RequestParam(required = false) Integer month,
-                                                                                                         @RequestParam(required = false) Integer year,
-                                                                                                         @RequestParam int amount) {
+                                                                                                                    @RequestParam(required = false) Integer year,
+                                                                                                                    @RequestParam int amount) {
         final var result = dashboardService.topLateDeliveriesByDriversWithPercentage(month, year, amount);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    @GetMapping("/total-revenue-in-year")
+    public ResponseEntity<ApiResponse<BigDecimal>> getTotalRevenueInYear() {
+        final var result = dashboardService.getTotalRevenueInYear();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/total-revenue-compare-year")
+    public ResponseEntity<ApiResponse<Map<Integer, Long>>> getTotalRevenueCompareYear() {
+        final var result = dashboardService.getTotalRevenueCompareYear();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/total-revenue-by-month")
+    public ResponseEntity<ApiResponse<Map<Integer, Long>>> getTotalRevenueByMonth() {
+        final var result = dashboardService.getTotalRevenueByMonth();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/total-revenue-by-last-4-weeks")
+    public ResponseEntity<ApiResponse<Map<Integer, Long>>> getTotalRevenueByLast4Weeks() {
+        final var result = dashboardService.getTotalRevenueByLast4Weeks();
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @GetMapping("/top-customers-by-revenue")
+    public ResponseEntity<ApiResponse<List<TopPayCustomerResponse>>> getTopCustomersByRevenue(@RequestParam int amount) {
+        final var result = dashboardService.getTopCustomersByRevenue(amount);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
 }

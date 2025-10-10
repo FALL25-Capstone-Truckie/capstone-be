@@ -51,4 +51,22 @@ public interface CustomerRepository extends BaseRepository<CustomerEntity> {
             ORDER BY month;
             """, nativeQuery = true)
     List<Object[]> getCustomerGrowthRateByYear(@Param("year") int year);
+
+    @Query(value = """
+                SELECT c2.id              AS customerId,
+                       u.full_name                AS customerName,
+                       c2.company_name  AS companyName,
+                       COALESCE(SUM(t.amount), 0) AS totalRevenue
+                FROM transaction t
+                         JOIN contracts c ON t.contract_id = c.id
+                         JOIN orders o ON c.order_id = o.id
+                         JOIN customers c2 ON o.customer_id = c2.id
+                         JOIN users u ON c2.user_id = u.id
+                WHERE t.status = 'PAID'
+                GROUP BY c2.id, u.full_name, c2.company_name
+                ORDER BY totalRevenue DESC
+                LIMIT :amount;
+            """, nativeQuery = true)
+    List<Object[]> getTopCustomersByRevenue(int amount);
+
 }
