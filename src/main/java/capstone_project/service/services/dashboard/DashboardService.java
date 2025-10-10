@@ -2,6 +2,7 @@ package capstone_project.service.services.dashboard;
 
 import capstone_project.dtos.response.dashboard.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +45,16 @@ public interface DashboardService {
     List<OnTimeDeliveriesDriverResponse> topOnTimeDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount);
 
     List<LateDeliveriesDriverResponse> topLateDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount);
+
+    BigDecimal getTotalRevenueInYear();
+
+    Map<Integer, Long> getTotalRevenueCompareYear();
+
+    Map<Integer, Long> getTotalRevenueByMonth();
+
+    Map<Integer, Long> getTotalRevenueByLast4Weeks();
+
+    List<TopPayCustomerResponse> getTopCustomersByRevenue(int amount);
 
 //    List<MonthlyRevenue> totalRevenueByMonthOverYear(int year);
 
