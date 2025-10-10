@@ -19,4 +19,6 @@ public interface CustomerEntityService extends BaseEntityService<CustomerEntity,
     List<Object[]> newCustomerByMonthOverYear(int year);
 
     List<Object[]> getUserGrowthRateByYear(int year);
+
+    List<Object[]> getTopCustomersByRevenue(int amount);
 }

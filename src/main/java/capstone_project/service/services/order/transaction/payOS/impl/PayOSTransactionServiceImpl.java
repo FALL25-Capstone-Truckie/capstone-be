@@ -176,6 +176,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         PaymentData paymentData = PaymentData.builder()
                 .orderCode(payOsOrderCode)
                 .amount(depositAmount.setScale(0, RoundingMode.HALF_UP).intValueExact())
+//                .amount(4000)
                 .description("Create deposit")
 //                                .items(List.of(item))
                 .cancelUrl(properties.getCancelUrl())
@@ -385,6 +386,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
                 transaction.setStatus(mappedStatus.name());
                 transaction.setGatewayResponse(rawCallbackPayload);
+                transaction.setPaymentDate(java.time.LocalDateTime.now());
                 transactionEntityService.save(transaction);
 
                 log.info("Webhook processed successfully. TxnId={}, PayOS status={}, Mapped status={}",
@@ -433,11 +435,18 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         OrderEntity order = contract.getOrderEntity();
         if (order == null) {
-            log.warn("Contract {} has no order linked", contract.getId());
+            log.warn("No order found for contract {}", contract.getId());
             throw new NotFoundException(
-                    "No contract linked to transaction",
-                    ErrorEnum.NOT_FOUND.getErrorCode()
-            );
+                    "No order found for contract",
+                    ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        OrderService orderService = orderServiceObjectProvider.getIfAvailable();
+        if (orderService == null) {
+            log.warn("No order found for contract {}", contract.getId());
+            throw new NotFoundException(
+                    "No order found for contract",
+                    ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
@@ -446,16 +455,15 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
-                } else {
-                    OrderService orderService = orderServiceObjectProvider.getIfAvailable();
-                    if (orderService == null) {
-                        throw new RuntimeException("OrderService is not available");
-                    }
-                    contract.setStatus(ContractStatusEnum.PAID.name());
                     orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+                } else {
+                    contract.setStatus(ContractStatusEnum.PAID.name());
+                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.FULLY_PAID);
                 }
             }
+
             case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
+
             case REFUNDED -> {
                 contract.setStatus(ContractStatusEnum.REFUNDED.name());
                 order.setStatus(OrderStatusEnum.RETURNED.name());
