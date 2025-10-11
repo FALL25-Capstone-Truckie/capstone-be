@@ -57,4 +57,19 @@ public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
     public Optional<OrderDetailEntity> findByTrackingCode(String trackingCode) {
         return orderDetailRepository.findByTrackingCode(trackingCode);
     }
+
+    @Override
+    public List<Object[]> getOnTimeVsLateDeliveriesWithPercentage(Integer month, Integer year) {
+        return orderDetailRepository.getOnTimeVsLateDeliveriesWithPercentage(month, year);
+    }
+
+    @Override
+    public List<Object[]> topOnTimeDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount) {
+        return orderDetailRepository.topOnTimeDeliveriesByDriversWithPercentage(month, year, amount);
+    }
+
+    @Override
+    public List<Object[]> topLateDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount) {
+        return orderDetailRepository.topLateDeliveriesByDriversWithPercentage(month, year, amount);
+    }
 }

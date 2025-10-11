@@ -24,11 +24,12 @@ import java.util.UUID;
 public class OrderSealController {
     private final OrderSealService orderSealService;
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/upload-seal-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<GetSealFullResponse>> assignSealForVehicleAssignment(
             @RequestParam("vehicleAssignmentId") UUID vehicleAssignmentId,
-            @RequestParam("sealImage") MultipartFile sealImage) {
-        OrderSealRequest request = new OrderSealRequest(vehicleAssignmentId, sealImage);
+            @RequestParam("sealImage") MultipartFile sealImage,
+            @RequestParam("sealCode") String sealCode) {
+        OrderSealRequest request = new OrderSealRequest(vehicleAssignmentId, sealImage, sealCode);
         final var result = orderSealService.assignSealForVehicleAssignment(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }

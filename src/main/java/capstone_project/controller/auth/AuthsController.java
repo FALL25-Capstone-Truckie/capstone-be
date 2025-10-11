@@ -88,9 +88,23 @@ public class AuthsController {
         return ResponseEntity.ok(ApiResponse.ok(success));
     }
 
-    @PostMapping("/logout/mobile")
+    @PostMapping("/mobile/logout")
     public ResponseEntity<ApiResponse<Boolean>> logoutMobile(@RequestBody RefreshTokenRequest refreshTokenRequest) {
         boolean success = registerService.logout(refreshTokenRequest.getRefreshToken());
         return ResponseEntity.ok(ApiResponse.ok(success));
+    }
+
+    @PostMapping("/mobile")
+    public ResponseEntity<ApiResponse<LoginResponse>> loginMobile(
+            @RequestBody @Valid LoginWithoutEmailRequest loginRequest) {
+        final var login = registerService.login(loginRequest);
+        return ResponseEntity.ok(ApiResponse.ok(login));
+    }
+
+    @PostMapping("/mobile/token/refresh")
+    public ResponseEntity<ApiResponse<RefreshTokenResponse>> refreshAccessTokenMobile(
+            @RequestBody @Valid RefreshTokenRequest refreshTokenRequest) {
+        final var refreshTokenResponse = registerService.refreshAccessToken(refreshTokenRequest.getRefreshToken());
+        return ResponseEntity.ok(ApiResponse.ok(refreshTokenResponse));
     }
 }

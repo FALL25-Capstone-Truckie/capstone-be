@@ -15,4 +15,10 @@ public interface CustomerEntityService extends BaseEntityService<CustomerEntity,
     List<CustomerEntity> findAllByCompanyNameLike(String companyName);
 
     List<CustomerEntity> findByUser_Role_RoleName(String userRoleRoleName);
+
+    List<Object[]> newCustomerByMonthOverYear(int year);
+
+    List<Object[]> getUserGrowthRateByYear(int year);
+
+    List<Object[]> getTopCustomersByRevenue(int amount);
 }

@@ -46,4 +46,10 @@ public interface OrderEntityService extends BaseEntityService<OrderEntity, UUID>
      * @return Optional containing the order if found, or empty if not found
      */
     Optional<OrderEntity> findVehicleAssignmentOrder(UUID assignmentId);
+
+    List<Object[]> topSenderByMonthAndYear(Integer month, Integer year, int amount);
+
+//    List<Object[]> topReceiverByMonthAndYear(Integer month, Integer year, int amount);
+
+    List<Object[]> topDriverByMonthAndYear(Integer month, Integer year, int amount);
 }

@@ -73,6 +73,11 @@ public class UserEntityServiceImpl implements UserEntityService {
     }
 
     @Override
+    public List<Object[]> countUsersByRole() {
+        return userRepository.countUsersByRole();
+    }
+
+    @Override
     public UserEntity save(UserEntity entity) {
         return userRepository.save(entity);
     }

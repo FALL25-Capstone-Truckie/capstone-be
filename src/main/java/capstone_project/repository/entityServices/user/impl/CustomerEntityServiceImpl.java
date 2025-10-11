@@ -37,6 +37,21 @@ public class CustomerEntityServiceImpl implements CustomerEntityService {
     }
 
     @Override
+    public List<Object[]> newCustomerByMonthOverYear(int year) {
+        return customerRepository.newCustomerByMonthOverYear(year);
+    }
+
+    @Override
+    public List<Object[]> getUserGrowthRateByYear(int year) {
+        return customerRepository.getCustomerGrowthRateByYear(year);
+    }
+
+    @Override
+    public List<Object[]> getTopCustomersByRevenue(int amount) {
+        return customerRepository.getTopCustomersByRevenue(amount);
+    }
+
+    @Override
     public CustomerEntity save(CustomerEntity entity) {
         return customerRepository.save(entity);
     }

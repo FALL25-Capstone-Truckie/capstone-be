@@ -3,6 +3,7 @@ package capstone_project.repository.entityServices.order.transaction;
 import capstone_project.entity.order.transaction.TransactionEntity;
 import capstone_project.repository.entityServices.common.BaseEntityService;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,4 +16,13 @@ public interface TransactionEntityService extends BaseEntityService<TransactionE
     boolean existsByContractIdAndStatus(UUID contractId, String status);
 
     List<TransactionEntity> findByStatusAndCreatedAtBefore(String status, java.time.OffsetDateTime time);
+
+    BigDecimal getTotalRevenueInYear();
+
+    List<Object[]> getTotalRevenueCompareYear();
+
+    List<Object[]> getTotalRevenueByMonth();
+
+    List<Object[]> getTotalRevenueByLast4Weeks();
+
 }
