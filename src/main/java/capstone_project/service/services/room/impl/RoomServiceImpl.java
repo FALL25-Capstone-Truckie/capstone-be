@@ -54,7 +54,7 @@ public class RoomServiceImpl implements RoomService {
             );
         }
 
-        String roomType;
+        String roomType = "";
         List<ParticipantInfo> participantInfoList = new ArrayList<>();
 
 
@@ -73,7 +73,8 @@ public class RoomServiceImpl implements RoomService {
             cus.setRoleName(customer.getRole().getRoleName());
             participantInfoList.add(cus);
 
-        }else {
+        }
+        else if(request.userId() == null || request.userId().isBlank()) {
             // -------- TH2: Chat theo Order ----------
             UUID orderUuid = UUID.fromString(request.orderId());
             OrderEntity order = orderEntityService.findEntityById(orderUuid)
@@ -87,7 +88,7 @@ public class RoomServiceImpl implements RoomService {
                 throw new BadRequestException("Order status must be ON_PLANNING", ErrorEnum.INVALID_REQUEST.getErrorCode());
             }
 
-            roomType = RoomEnum.ORDER_TYPE.name();
+            roomType = RoomEnum.ORDER_TYPE.name(); //Room is ORDER_TYPE
 
             // Lấy customer + staff trong order để đưa vào participants
             UUID customerId = order.getSender().getId();

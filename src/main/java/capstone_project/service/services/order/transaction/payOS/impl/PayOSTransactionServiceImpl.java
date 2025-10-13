@@ -4,6 +4,7 @@ import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.config.payment.PayOS.PayOSProperties;
+import capstone_project.dtos.request.room.CreateRoomRequest;
 import capstone_project.dtos.response.order.transaction.GetTransactionStatusResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.entity.auth.UserEntity;
@@ -21,6 +22,7 @@ import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.service.mapper.order.TransactionMapper;
 import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
+import capstone_project.service.services.room.RoomService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
@@ -48,6 +50,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final UserEntityService userEntityService;
     private final ContractSettingEntityService contractSettingEntityService;
     private final ObjectProvider<OrderService> orderServiceObjectProvider;
+    private final RoomService roomService;
 
     private final PayOSProperties properties;
     private final PayOS payOS;
@@ -456,6 +459,10 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
                     orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+
+                    //Create room for order (Bao)
+                    CreateRoomRequest createRoomRequest = new CreateRoomRequest(order.getId().toString(),null);
+                    roomService.createRoom(createRoomRequest);
                 } else {
                     contract.setStatus(ContractStatusEnum.PAID.name());
                     orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.FULLY_PAID);
