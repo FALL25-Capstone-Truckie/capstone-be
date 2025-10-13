@@ -1,6 +1,7 @@
 package capstone_project.controller.room;
 
 import capstone_project.dtos.request.room.CreateRoomRequest;
+import capstone_project.dtos.request.room.GetRoomRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.room.CreateRoomResponse;
 import capstone_project.service.services.room.RoomService;
@@ -101,4 +102,26 @@ public class RoomController {
         final var hasRoom = roomService.getCustomerHasRoomSupported(userId);
         return ResponseEntity.ok(ApiResponse.ok(hasRoom));
     }
+
+    @GetMapping("get-room-by-order")
+    public ResponseEntity<ApiResponse<CreateRoomResponse>> getRoomForOrder(
+            @RequestParam String orderId,
+            @RequestParam String roomType) {
+
+        GetRoomRequest request = new GetRoomRequest(orderId, roomType);
+        final var hasRoom = roomService.getRoomByOrderId(request);
+        return ResponseEntity.ok(ApiResponse.ok(hasRoom));
+    }
+
+    @GetMapping("get-room-by-user-and-type")
+        public ResponseEntity<ApiResponse<List<CreateRoomResponse>>> getRoomForUserAndType(
+            @RequestParam String userId,
+            @RequestParam String roomType) {
+
+        final var hasRoom = roomService.getListRoomsForUserIdAndType(userId,roomType);
+        return ResponseEntity.ok(ApiResponse.ok(hasRoom));
+    }
+
+
+
 }

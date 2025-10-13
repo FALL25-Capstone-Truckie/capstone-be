@@ -4,6 +4,7 @@ import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.room.CreateRoomRequest;
+import capstone_project.dtos.request.room.GetRoomRequest;
 import capstone_project.dtos.response.room.CreateRoomResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.chat.ParticipantInfo;
@@ -220,6 +221,32 @@ public class RoomServiceImpl implements RoomService {
         }
     }
 
+    @Override
+    public List<CreateRoomResponse> getListRoomsForUserIdAndType(String userId,String roomType) {
+        List<RoomEntity> result = new ArrayList<>();
+        try {
+            ApiFuture<QuerySnapshot> future = firestore.collection(FirebaseCollectionEnum.Rooms.name())
+                    .whereEqualTo(FirebaseCollectionEnum.type.name(), roomType)
+                    .whereEqualTo(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name())
+                    .get();
+
+            List<QueryDocumentSnapshot> documents = future.get().getDocuments();
+
+            for (QueryDocumentSnapshot doc : documents) {
+                RoomEntity room = doc.toObject(RoomEntity.class);
+                boolean hasUser = room.getParticipants().stream()
+                        .anyMatch(p -> p.getUserId().equals(userId));
+                if (hasUser) {
+                    result.add(room);
+                }
+            }
+            return roomMapper.toCreateRoomResponseList(result);
+
+        } catch (Exception e) {
+            log.error("Failed to get rooms", e);
+            throw new RuntimeException("Cannot get rooms", e);
+        }
+    }
 
     @Override
     @Transactional
@@ -367,6 +394,33 @@ public class RoomServiceImpl implements RoomService {
         } catch (Exception e) {
             log.error("Failed to check supported room for user {}", userId, e);
             throw new RuntimeException("Cannot check room supported for customer", e);
+        }
+    }
+
+    @Override
+    public CreateRoomResponse getRoomByOrderId(GetRoomRequest request) {
+        try {
+            CollectionReference roomsRef = firestore.collection(FirebaseCollectionEnum.Rooms.name());
+            ApiFuture<QuerySnapshot> future = roomsRef
+                    .whereEqualTo(FirebaseCollectionEnum.orderId.name(), request.orderId())
+                    .whereEqualTo(FirebaseCollectionEnum.type.name(), request.roomType())
+                    .whereEqualTo(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name())
+                    .limit(1)
+                    .get();
+            QuerySnapshot snapshot = future.get();
+            if(snapshot.isEmpty()){
+                throw new NotFoundException("Cannot get room supported for customer", ErrorEnum.NOT_FOUND.getErrorCode());
+            }
+            DocumentSnapshot document = snapshot.getDocuments().get(0);
+
+            // Chuyển sang RoomEntity
+            RoomEntity roomEntity = document.toObject(RoomEntity.class);
+
+            // Trả về roomEntity
+            return roomMapper.toCreateRoomResponse(roomEntity);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch room by orderId from Firestore", e);
         }
     }
 

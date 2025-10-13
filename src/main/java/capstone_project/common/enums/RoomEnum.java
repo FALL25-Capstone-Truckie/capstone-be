@@ -4,5 +4,6 @@ public enum RoomEnum {
     ORDER_TYPE,
     PUBLIC,
     SUPPORT,
-    SUPPORTED
+    SUPPORTED,
+    DRIVER_STAFF_ORDER
 }
