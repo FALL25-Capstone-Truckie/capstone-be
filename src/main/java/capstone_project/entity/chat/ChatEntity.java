@@ -19,6 +19,7 @@ public class ChatEntity {
     private String chatId;
     private String roomId;
     private String senderId;
+    private String senderType;
     private String content;
     private String type;
     private String status;

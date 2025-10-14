@@ -7,6 +7,7 @@ public record ChatResponseDTO(
         String chatId,
         String roomId,
         String senderId,
+        String senderType,
         String content,
         String type,
         String status,

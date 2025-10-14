@@ -8,8 +8,11 @@ import capstone_project.dtos.request.room.ChatMessageDTO;
 import capstone_project.dtos.request.room.MessageRequest;
 import capstone_project.dtos.response.room.ChatPageResponse;
 import capstone_project.dtos.response.room.ChatResponseDTO;
+import capstone_project.entity.auth.RoleEntity;
+import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.chat.ChatEntity;
 import capstone_project.entity.chat.RoomEntity;
+import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.service.mapper.room.ChatMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.room.ChatService;
@@ -17,6 +20,7 @@ import com.google.api.core.ApiFuture;
 import com.google.api.core.ApiFutureCallback;
 import com.google.api.core.ApiFutures;
 import com.google.cloud.firestore.*;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,15 +40,21 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class ChatServiceImpl implements ChatService {
     private final Firestore firestore;
+    private final UserEntityService userEntityService;
     private final CloudinaryService cloudinaryService;
     private final ChatMapper chatMapper;
 
     @Override
+    @Transactional
     public CompletableFuture<ChatResponseDTO> saveMessage(MessageRequest messageRequest) {
         if (messageRequest.roomId() == null || messageRequest.roomId().trim().isEmpty()
                 || messageRequest.message() == null || messageRequest.message().trim().isEmpty()) {
             throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage()+"Không tìm thấy ID phòng hoặc nội dung tin nhắn chat",ErrorEnum.NOT_FOUND.getErrorCode());
         }
+
+        UserEntity user = userEntityService.getUserById(UUID.fromString(messageRequest.senderId()))
+                .orElseThrow(() -> new NotFoundException("user not found",
+                        ErrorEnum.NOT_FOUND.getErrorCode()));
 
 
 
@@ -61,8 +71,9 @@ public class ChatServiceImpl implements ChatService {
                 .chatId(messageDoc.getId())
                 .roomId(messageRequest.roomId())
                 .senderId(messageRequest.senderId())
+                .senderType(user.getRole().getRoleName())
                 .content(messageRequest.message())
-                .type(MessageEnum.TEXT.name())
+                .type(messageRequest.type())
                 .status(MessageEnum.SENT.name())
                 .build();
 

@@ -18,6 +18,8 @@ public interface RoomService {
 
     List<CreateRoomResponse> getListRoomsForUserIdAndType(String userId,String roomType);
 
+    List<CreateRoomResponse> getFullActiveRoomByTypeForAdmin(String roomType);
+
     boolean joinRoom(String roomId, UUID staffId);
 
     boolean activeRoomByOrderId(UUID orderId);

@@ -122,6 +122,14 @@ public class RoomController {
         return ResponseEntity.ok(ApiResponse.ok(hasRoom));
     }
 
+    @GetMapping("get-all-rooms-for-admin")
+    public ResponseEntity<ApiResponse<List<CreateRoomResponse>>> getFullActiveRoomByTypeForAdmin(
+            @RequestParam String roomType) {
+
+        final var hasRooms = roomService.getFullActiveRoomByTypeForAdmin(roomType);
+        return ResponseEntity.ok(ApiResponse.ok(hasRooms));
+    }
+
 
 
 }

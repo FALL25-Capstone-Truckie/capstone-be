@@ -249,6 +249,29 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    public List<CreateRoomResponse> getFullActiveRoomByTypeForAdmin(String roomType) {
+        try {
+            ApiFuture<QuerySnapshot> future = firestore.collection(FirebaseCollectionEnum.Rooms.name())
+                    .whereEqualTo(FirebaseCollectionEnum.type.name(), roomType)
+                    .whereEqualTo(FirebaseCollectionEnum.status.name(), CommonStatusEnum.ACTIVE.name())
+                    .get();
+
+            List<QueryDocumentSnapshot> docs = future.get().getDocuments();
+
+            List<RoomEntity> supportRooms = docs.stream()
+                    .map(doc -> doc.toObject(RoomEntity.class))
+                    .filter(room -> room.getParticipants() != null )
+                    .toList();
+
+            return roomMapper.toCreateRoomResponseList(supportRooms);
+
+        } catch (Exception e) {
+            log.error("Failed to get full rooms by type for admin", e);
+            throw new RuntimeException("Failed to get full rooms by type for admin", e);
+        }
+    }
+
+    @Override
     @Transactional
     public boolean joinRoom(String roomId, UUID staffId) {
         try {
