@@ -97,7 +97,7 @@ public class ChatServiceImpl implements ChatService {
                 .document(roomId)
                 .collection(FirebaseCollectionEnum.Chats.name());
 
-        Query query = messagesRef.orderBy(FirebaseCollectionEnum.createdAt.name(), Query.Direction.DESCENDING)
+        Query query = messagesRef.orderBy(FirebaseCollectionEnum.createdAt.name(), Query.Direction.ASCENDING)
                 .limit(pageSize);
 
         // Nếu có lastMessageId, startAfter document đó để paging
@@ -116,6 +116,7 @@ public class ChatServiceImpl implements ChatService {
             messages.add(new ChatMessageDTO(
                     doc.getId(),
                     doc.getString(FirebaseCollectionEnum.senderId.name()),
+                    doc.getString(FirebaseCollectionEnum.senderType.name()),
                     doc.getString(FirebaseCollectionEnum.content.name()),
                     doc.getTimestamp(FirebaseCollectionEnum.createdAt.name()),
                     doc.getString(FirebaseCollectionEnum.type.name())
@@ -177,6 +178,7 @@ public class ChatServiceImpl implements ChatService {
             messages.add(new ChatMessageDTO(
                     doc.getId(),
                     doc.getString(FirebaseCollectionEnum.senderId.name()),
+                    doc.getString(FirebaseCollectionEnum.senderType.name()),
                     doc.getString(FirebaseCollectionEnum.content.name()),
                     doc.getTimestamp(FirebaseCollectionEnum.createdAt.name()),
                     doc.getString(FirebaseCollectionEnum.type.name())

@@ -11,6 +11,7 @@ public enum FirebaseCollectionEnum {
     userId,
     roleName,
     senderId,
+    senderType,
     content,
     
 }
