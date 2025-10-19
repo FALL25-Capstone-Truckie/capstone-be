@@ -37,4 +37,10 @@ public class VehicleLocationMessage {
 
     // Time information
     private LocalDateTime lastUpdated;
+    
+    // Smooth tracking information for frontend interpolation
+    private BigDecimal bearing; // Direction in degrees (0-360)
+    private BigDecimal speed; // Speed in km/h
+    private BigDecimal velocityLat; // Latitude velocity (degrees/second)
+    private BigDecimal velocityLng; // Longitude velocity (degrees/second)
 }

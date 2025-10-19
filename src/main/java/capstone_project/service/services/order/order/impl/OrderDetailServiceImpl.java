@@ -108,9 +108,9 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                 .allMatch(d -> d.getStatus().equals(orderDetailStatus.name()));
 
         if (allSameStatus) {
-            // Update status của Order
-            orderEntity.setStatus(orderDetailStatus.name());
-            orderEntityService.save(orderEntity);
+            // Update status của Order and send WebSocket notification
+            orderService.updateOrderStatus(orderEntity.getId(), orderDetailStatus);
+            log.info("Updated order {} status to {} after all order details reached same status", orderEntity.getOrderCode(), orderDetailStatus);
         }
 
 
@@ -132,9 +132,9 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
 
         OrderEntity orderEntity = orderDetailEntity.getOrderEntity();
-        // Update status của Order
-        orderEntity.setStatus(OrderStatusEnum.IN_TROUBLES.name());
-        orderEntityService.save(orderEntity);
+        // Update status của Order and send WebSocket notification
+        orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.IN_TROUBLES);
+        log.info("Updated order {} status to IN_TROUBLES after driver reported issue for order detail {}", orderEntity.getOrderCode(), orderDetailId);
 
 
         return orderDetailMapper.toGetOrderDetailResponse(orderDetailEntity);

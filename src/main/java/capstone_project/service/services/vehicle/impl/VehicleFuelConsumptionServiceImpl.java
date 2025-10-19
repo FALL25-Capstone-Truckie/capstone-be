@@ -12,6 +12,7 @@ import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEn
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.services.cloudinary.CloudinaryService;
+import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.vehicle.VehicleFuelConsumptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final CloudinaryService cloudinaryService;
     private final OrderEntityService orderEntityService;
+    private final OrderService orderService;
 
     @Override
     @Transactional
@@ -62,11 +64,12 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         final var savedEntity = vehicleFuelConsumptionEntityService.save(entity);
 
+        // Update order status to PICKING_UP and send WebSocket notification
         final var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignmentEntity.getId());
         if (orderOpt.isPresent()) {
             final var orderEntity = orderOpt.get();
-            orderEntity.setStatus(OrderStatusEnum.PICKING_UP.name());
-            orderEntityService.save(orderEntity);
+            orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.PICKING_UP);
+            log.info("Updated order {} status to PICKING_UP after driver submitted odometer start", orderEntity.getOrderCode());
         }
 
         return mapToResponse(savedEntity);

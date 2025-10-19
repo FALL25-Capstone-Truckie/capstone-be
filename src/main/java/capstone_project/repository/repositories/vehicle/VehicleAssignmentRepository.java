@@ -16,6 +16,9 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
 
     List<VehicleAssignmentEntity> findByVehicleEntityId(UUID vehicleEntityId);
 
+    // Add missing method for finding by vehicle ID and status list
+    List<VehicleAssignmentEntity> findByVehicleEntityIdAndStatusIn(UUID vehicleId, List<String> statuses);
+
     /**
      * Find active vehicle assignments with their orders for real-time tracking
      * Only return assignments that have active order details

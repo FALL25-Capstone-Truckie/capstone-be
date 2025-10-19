@@ -98,20 +98,22 @@ public class VehicleLocationWebSocketController {
             );
         }
 
-        // Use 5 seconds as default rate limit
+        // DEMO OPTIMIZATION: Use 2 second rate limit to prevent visual glitches
         boolean updated = vehicleEntityService.updateLocationWithRateLimit(
-                vehicleId, message.getLatitude(), message.getLongitude(), 5);
+                vehicleId, message.getLatitude(), message.getLongitude(), 2);
 
         if (updated) {
-            // Broadcast directly with provided license plate number to avoid extra DB query
+            // Broadcast directly with provided license plate number, bearing, and speed from mobile
             vehicleLocationService.broadcastVehicleLocation(
                     vehicleId,
                     message.getLatitude(),
                     message.getLongitude(),
-                    message.getLicensePlateNumber()
+                    message.getLicensePlateNumber(),
+                    message.getBearing(),
+                    message.getSpeed()
             );
-            log.info("Successfully updated and broadcast rate-limited location for vehicle: {} ({})",
-                    vehicleId, message.getLicensePlateNumber());
+            log.info("Successfully updated and broadcast rate-limited location for vehicle: {} ({}), speed: {}km/h",
+                    vehicleId, message.getLicensePlateNumber(), message.getSpeed());
         } else {
             // Check if vehicle exists
             if (!vehicleEntityService.findByVehicleId(vehicleId).isPresent()) {

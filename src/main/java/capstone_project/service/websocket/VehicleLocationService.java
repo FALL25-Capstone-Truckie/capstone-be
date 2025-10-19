@@ -60,6 +60,9 @@ public class VehicleLocationService {
      * Broadcast updated vehicle location to all subscribers using the message DTO
      */
     public void broadcastVehicleLocation(VehicleLocationMessage message) {
+        // Calculate velocity for smooth frontend interpolation
+        enhanceMessageWithVelocity(message);
+        
         // Broadcast to all vehicles topic for web clients
         messagingTemplate.convertAndSend(TOPIC_ALL_VEHICLES, message);
 
@@ -69,8 +72,42 @@ public class VehicleLocationService {
         // Find all orders associated with this vehicle and broadcast to order topics
         broadcastToOrderTopics(message);
 
-        log.debug("Broadcast vehicle location: vehicleId={}, lat={}, lng={}",
-                message.getVehicleId(), message.getLatitude(), message.getLongitude());
+        log.debug("Broadcast vehicle location: vehicleId={}, lat={}, lng={}, speed={}km/h",
+                message.getVehicleId(), message.getLatitude(), message.getLongitude(), message.getSpeed());
+    }
+    
+    /**
+     * Enhance message with velocity data for smooth frontend interpolation
+     * Uses actual speed and bearing from mobile if available, otherwise calculates defaults
+     */
+    private void enhanceMessageWithVelocity(VehicleLocationMessage message) {
+        // Use speed from message if available, otherwise default
+        double speedKmh = message.getSpeed() != null ? 
+            message.getSpeed().doubleValue() : 45.0;
+        
+        // Use bearing from message if available, otherwise default
+        double bearingDegrees = message.getBearing() != null ? 
+            message.getBearing().doubleValue() : 0.0;
+        
+        // Ensure values are set
+        if (message.getSpeed() == null) {
+            message.setSpeed(BigDecimal.valueOf(speedKmh));
+        }
+        if (message.getBearing() == null) {
+            message.setBearing(BigDecimal.valueOf(bearingDegrees));
+        }
+        
+        // Calculate velocity components (degrees per second) for smooth interpolation
+        double speedMs = speedKmh / 3.6; // Convert km/h to m/s
+        double degreesPerSecond = speedMs / 111000.0; // Approximate meters per degree
+        
+        // Calculate velocity components based on bearing
+        double bearingRad = Math.toRadians(bearingDegrees);
+        double velocityLat = degreesPerSecond * Math.cos(bearingRad); // Northward component
+        double velocityLng = degreesPerSecond * Math.sin(bearingRad); // Eastward component
+        
+        message.setVelocityLat(BigDecimal.valueOf(velocityLat));
+        message.setVelocityLng(BigDecimal.valueOf(velocityLng));
     }
 
     /**
@@ -125,6 +162,13 @@ public class VehicleLocationService {
                         VehicleLocationMessage enhancedMessage = buildEnhancedLocationMessage(vehicle, assignment);
                         
                         if (enhancedMessage != null) {
+                            // CRITICAL: Copy bearing, speed, and velocity from original message
+                            // These come from mobile app and are essential for smooth tracking
+                            enhancedMessage.setBearing(message.getBearing());
+                            enhancedMessage.setSpeed(message.getSpeed());
+                            enhancedMessage.setVelocityLat(message.getVelocityLat());
+                            enhancedMessage.setVelocityLng(message.getVelocityLng());
+                            
                             messagingTemplate.convertAndSend(orderTopic, enhancedMessage);
                             log.info("=== [broadcastToOrderTopics] SUCCESSFULLY broadcast vehicle {} location to order {} topic: {}", 
                                     message.getVehicleId(), orderId, orderTopic);
@@ -167,11 +211,21 @@ public class VehicleLocationService {
      * Broadcast vehicle location update with basic parameters
      */
     public void broadcastVehicleLocation(UUID vehicleId, BigDecimal latitude, BigDecimal longitude, String licensePlateNumber) {
+        broadcastVehicleLocation(vehicleId, latitude, longitude, licensePlateNumber, null, null);
+    }
+    
+    /**
+     * Broadcast vehicle location update with bearing and speed from mobile
+     */
+    public void broadcastVehicleLocation(UUID vehicleId, BigDecimal latitude, BigDecimal longitude, 
+                                        String licensePlateNumber, BigDecimal bearing, BigDecimal speed) {
         VehicleLocationMessage message = VehicleLocationMessage.builder()
                 .vehicleId(vehicleId)
                 .latitude(latitude)
                 .longitude(longitude)
                 .licensePlateNumber(licensePlateNumber)
+                .bearing(bearing)
+                .speed(speed)
                 .build();
 
         broadcastVehicleLocation(message);

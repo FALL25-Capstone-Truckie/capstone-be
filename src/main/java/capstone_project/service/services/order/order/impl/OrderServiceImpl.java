@@ -33,6 +33,7 @@ import capstone_project.service.mapper.order.*;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import lombok.RequiredArgsConstructor;
@@ -71,6 +72,7 @@ public class OrderServiceImpl implements OrderService {
     private final PenaltyHistoryEntityService penaltyHistoryEntityService;
     private final CameraTrackingEntityService cameraTrackingEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
+    private final OrderStatusWebSocketService orderStatusWebSocketService;
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -181,8 +183,22 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
+        OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
+
+        // Send WebSocket notification for status change
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                orderId,
+                order.getOrderCode(),
+                previousStatus,
+                newStatus
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+            // Don't throw - WebSocket failure shouldn't break business logic
+        }
 
         return orderMapper.toCreateOrderResponse(order);
     }
@@ -214,6 +230,7 @@ public class OrderServiceImpl implements OrderService {
             );
         }
         // Update Order
+        OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
 
@@ -223,6 +240,18 @@ public class OrderServiceImpl implements OrderService {
         orderDetailEntities.forEach(detail -> detail.setStatus(newStatus.name()));
         orderDetailEntityService.saveAllOrderDetailEntities(orderDetailEntities);
 
+        // Send WebSocket notification for status change
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                orderId,
+                order.getOrderCode(),
+                previousStatus,
+                newStatus
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+            // Don't throw - WebSocket failure shouldn't break business logic
+        }
 
         return orderMapper.toCreateOrderResponse(order);
     }
@@ -240,17 +269,29 @@ public class OrderServiceImpl implements OrderService {
             case CONTRACT_DENIED:
                 return next == OrderStatusEnum.CANCELLED;
             case CONTRACT_SIGNED:
-                return next == OrderStatusEnum.ON_PLANNING;
+                return next == OrderStatusEnum.ON_PLANNING || next == OrderStatusEnum.FULLY_PAID;
             case ON_PLANNING:
                 return next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
             case ASSIGNED_TO_DRIVER:
-                return next == OrderStatusEnum.DRIVER_CONFIRM;
+                return next == OrderStatusEnum.DRIVER_CONFIRM
+                        || next == OrderStatusEnum.FULLY_PAID
+                        || next == OrderStatusEnum.PICKING_UP;
             case DRIVER_CONFIRM:
-                return next == OrderStatusEnum.PICKED_UP;
+                return next == OrderStatusEnum.PICKED_UP
+                        || next == OrderStatusEnum.PICKING_UP;
+            case FULLY_PAID:
+                return next == OrderStatusEnum.PICKING_UP
+                        || next == OrderStatusEnum.ON_DELIVERED;
+            case PICKING_UP:
+                return next == OrderStatusEnum.ON_DELIVERED
+                        || next == OrderStatusEnum.ONGOING_DELIVERED
+                        || next == OrderStatusEnum.SEALED_COMPLETED
+                        || next == OrderStatusEnum.IN_TROUBLES;
             case PICKED_UP:
                 return next == OrderStatusEnum.SEALED_COMPLETED;
             case SEALED_COMPLETED:
-                return next == OrderStatusEnum.ON_DELIVERED;
+                return next == OrderStatusEnum.ON_DELIVERED
+                        || next == OrderStatusEnum.ONGOING_DELIVERED;
             case ON_DELIVERED:
                 return next == OrderStatusEnum.ONGOING_DELIVERED || next == OrderStatusEnum.IN_TROUBLES;
             case ONGOING_DELIVERED:
@@ -676,8 +717,24 @@ public class OrderServiceImpl implements OrderService {
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
+        
+        OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
+        
+        // Send WebSocket notification for status change
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                orderId,
+                order.getOrderCode(),
+                previousStatus,
+                newStatus
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+            // Don't throw - WebSocket failure shouldn't break business logic
+        }
+        
         return true;
     }
 
