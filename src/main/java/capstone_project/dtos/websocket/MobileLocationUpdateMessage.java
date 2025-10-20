@@ -13,4 +13,6 @@ public class MobileLocationUpdateMessage {
     private BigDecimal latitude;
     private BigDecimal longitude;
     private String licensePlateNumber; // Biển số xe để tiện hiển thị bên web
+    private BigDecimal bearing; // Direction in degrees (0-360) from mobile
+    private BigDecimal speed; // Speed in km/h from mobile
 }

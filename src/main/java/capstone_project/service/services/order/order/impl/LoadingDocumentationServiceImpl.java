@@ -15,6 +15,7 @@ import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.services.order.order.LoadingDocumentationService;
+import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.order.PackingProofImageService;
 import capstone_project.service.services.order.seal.OrderSealService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
     private final OrderSealService orderSealService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final OrderEntityService orderEntityService;
+    private final OrderService orderService;
 
     @Override
     @Transactional
@@ -118,8 +120,9 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
         final var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
         if (orderOpt.isPresent()) {
             final var orderEntity = orderOpt.get();
-            orderEntity.setStatus(OrderStatusEnum.ON_DELIVERED.name());
-            orderEntityService.save(orderEntity);
+            // Use OrderService to update status and send WebSocket notification
+            orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.ON_DELIVERED);
+            log.info("Updated order {} status to ON_DELIVERED after loading documentation", orderEntity.getOrderCode());
         }
     }
 }
