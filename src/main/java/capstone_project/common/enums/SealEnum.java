@@ -1,6 +1,6 @@
 package capstone_project.common.enums;
 
-public enum OrderSealEnum {
+public enum SealEnum {
     ACTIVE,
     IN_USE,
     REMOVED,

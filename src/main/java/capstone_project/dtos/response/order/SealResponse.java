@@ -3,7 +3,7 @@ package capstone_project.dtos.response.order;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public record OrderSealResponse(
+public record SealResponse(
     UUID id,
     String sealCode,
     String description,

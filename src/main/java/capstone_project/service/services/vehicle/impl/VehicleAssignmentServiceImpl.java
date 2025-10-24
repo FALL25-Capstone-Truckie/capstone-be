@@ -9,7 +9,7 @@ import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.vehicle.*;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.*;
-import capstone_project.entity.pricing.VehicleRuleEntity;
+import capstone_project.entity.pricing.VehicleTypeRuleEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -18,8 +18,8 @@ import capstone_project.repository.entityServices.order.contract.ContractEntityS
 import capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
-import capstone_project.repository.entityServices.order.order.OrderSealEntityService;
-import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
+import capstone_project.repository.entityServices.order.order.SealEntityService;
+import capstone_project.repository.entityServices.pricing.VehicleTypeRuleEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
@@ -59,7 +59,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final ContractEntityService contractEntityService;
     private final ContractRuleService contractRuleService;
-    private final VehicleRuleEntityService vehicleRuleEntityService;
+    private final VehicleTypeRuleEntityService vehicleTypeRuleEntityService;
     private final DriverService driverService;
     private final VehicleAssignmentMapper mapper;
     private final VehicleMapper vehicleMapper;
@@ -70,7 +70,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderDetailService orderDetailService;
     private final JourneyHistoryEntityService journeyHistoryEntityService;
     private final VietmapService vietmapService;
-    private final OrderSealEntityService orderSealEntityService;
+    private final SealEntityService sealEntityService;
 
     private final ObjectMapper objectMapper;
 
@@ -215,8 +215,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
-            UUID vehicleRuleId = response.getVehicleRuleId();
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+            UUID vehicleRuleId = response.getVehicleTypeRuleId();
+            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -658,8 +658,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         for (ContractRuleAssignResponse assignment : assignments) {
             // Lấy thông tin về vehicle rule
-            UUID vehicleRuleId = assignment.getVehicleRuleId();
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+            UUID vehicleRuleId = assignment.getVehicleTypeRuleId();
+            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -693,7 +693,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             } else {
                 groupingReason = String.format(
                         "Các đơn hàng được gộp tối ưu cho xe %s (%.1f/%.1f kg - %.1f%%)",
-                        vehicleRule.getVehicleRuleName(),
+                        vehicleRule.getVehicleTypeRuleName(),
                         totalWeight.doubleValue(),
                         vehicleRule.getMaxWeight().doubleValue(),
                         totalWeight.doubleValue() * 100 / vehicleRule.getMaxWeight().doubleValue()
@@ -1180,7 +1180,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      * @return Danh sách gợi ý xe và tài xế phù hợp cho nhóm
      */
     private List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> findSuitableVehiclesForGroup(
-            List<UUID> detailIds, VehicleRuleEntity vehicleRule, UUID vehicleTypeId) {
+            List<UUID> detailIds, VehicleTypeRuleEntity vehicleRule, UUID vehicleTypeId) {
 
         List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions = new ArrayList<>();
 
@@ -1491,7 +1491,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         log.info("Creating seal for vehicle assignment {}: sealCode={}", assignment.getId(), sealCode);
 
         // Kiểm tra seal code đã tồn tại chưa
-        List<OrderSealEntity> existingSeals = orderSealEntityService.findBySealCode(sealCode);
+        List<SealEntity> existingSeals = sealEntityService.findBySealCode(sealCode);
         if (!existingSeals.isEmpty()) {
             log.warn("Seal with code {} already exists ({} instances found)", sealCode, existingSeals.size());
             throw new NotFoundException(
@@ -1506,14 +1506,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             finalDescription = "Seal for " + assignment.getTrackingCode();
         }
 
-        OrderSealEntity orderSeal = OrderSealEntity.builder()
+        SealEntity orderSeal = SealEntity.builder()
                 .sealCode(sealCode)
                 .description(finalDescription)
-                .status(OrderSealEnum.ACTIVE.name())
+                .status(SealEnum.ACTIVE.name())
                 .vehicleAssignment(assignment)
                 .build();
 
-        OrderSealEntity savedSeal = orderSealEntityService.save(orderSeal);
+        SealEntity savedSeal = sealEntityService.save(orderSeal);
         log.info("Created order seal with ID: {} and code: {}, linked to vehicle assignment: {}",
                 savedSeal.getId(), savedSeal.getSealCode(), assignment.getId());
     }

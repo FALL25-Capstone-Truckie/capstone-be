@@ -7,7 +7,7 @@ import capstone_project.dtos.response.issue.SimpleStaffResponse;
 import capstone_project.dtos.response.order.*;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.contract.SimpleContractResponse;
-import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
+import capstone_project.dtos.response.order.seal.GetSealResponse;
 import capstone_project.dtos.response.order.transaction.SimpleTransactionResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.dtos.response.order.PhotoCompletionResponse;
@@ -26,7 +26,7 @@ import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntit
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
-import capstone_project.service.services.order.seal.OrderSealService;
+import capstone_project.service.services.order.seal.SealService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +47,7 @@ public class StaffOrderMapper {
     private final UserEntityService userEntityService;
     private final DriverEntityService driverEntityService;
     private final VehicleEntityService vehicleEntityService;
-    private final OrderSealService orderSealService;
+    private final SealService sealService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final JourneyHistoryService journeyHistoryService;
     private final IssueImageService issueImageService;
@@ -107,7 +107,29 @@ public class StaffOrderMapper {
                 response.pickupAddress().province()
         );
 
-        // Process order details with enhanced information for staff
+        // Collect unique vehicle assignment IDs from order details
+        Set<UUID> uniqueVehicleAssignmentIds = response.orderDetails().stream()
+                .map(GetOrderDetailResponse::vehicleAssignmentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // Build full vehicle assignment responses for unique IDs
+        List<StaffVehicleAssignmentResponse> vehicleAssignments = uniqueVehicleAssignmentIds.stream()
+                .map(vaId -> {
+                    // Find the first vehicleAssignmentResponse with this ID from response.vehicleAssignments()
+                    VehicleAssignmentResponse vaResponse = response.vehicleAssignments().stream()
+                            .filter(va -> va.id().equals(vaId))
+                            .findFirst()
+                            .orElse(null);
+                    if (vaResponse != null) {
+                        return toStaffVehicleAssignmentResponse(vaResponse);
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        // Process order details with only vehicle assignment ID reference
         List<StaffOrderDetailResponse> staffOrderDetails = response.orderDetails().stream()
                 .map(this::toStaffOrderDetailResponseWithEnhancedInfo)
                 .collect(Collectors.toList());
@@ -130,7 +152,8 @@ public class StaffOrderMapper {
                 response.sender().getRepresentativePhone(),
                 response.sender().getCompanyName(),
                 response.category().categoryName(),
-                staffOrderDetails
+                staffOrderDetails,
+                vehicleAssignments  // Add aggregated vehicle assignments
         );
     }
 
@@ -149,11 +172,6 @@ public class StaffOrderMapper {
             );
         }
 
-        StaffVehicleAssignmentResponse vehicleAssignment = null;
-        if (detail.vehicleAssignmentId() != null) {
-            vehicleAssignment = toStaffVehicleAssignmentResponse(detail.vehicleAssignmentId());
-        }
-
         return new StaffOrderDetailResponse(
                 detail.trackingCode(),
                 detail.weightBaseUnit(),
@@ -167,7 +185,7 @@ public class StaffOrderMapper {
                 detail.createdAt(),
                 detail.trackingCode(),
                 orderSize,
-                vehicleAssignment
+                detail.vehicleAssignmentId()  // Only store ID reference
         );
     }
 
@@ -274,9 +292,9 @@ public class StaffOrderMapper {
         }
 
         // Get order seals (null-safe)
-        List<GetOrderSealResponse> orderSeals = Collections.emptyList();
+        List<GetSealResponse> orderSeals = Collections.emptyList();
         try {
-            List<GetOrderSealResponse> raw = orderSealService.getAllOrderSealsByVehicleAssignmentId(vehicleAssignmentId);
+            List<GetSealResponse> raw = sealService.getAllSealsByVehicleAssignmentId(vehicleAssignmentId);
             if (raw != null) orderSeals = raw;
         } catch (Exception e) {
             log.warn("Could not fetch order seals for {}: {}", vehicleAssignmentId, e.getMessage());

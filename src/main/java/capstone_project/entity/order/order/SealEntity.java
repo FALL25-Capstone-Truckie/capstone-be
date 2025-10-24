@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderSealEntity extends BaseEntity {
+public class SealEntity extends BaseEntity {
 
     @Column(name = "seal_code")
     private String sealCode;

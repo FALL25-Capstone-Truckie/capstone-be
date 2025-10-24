@@ -30,14 +30,13 @@ import capstone_project.repository.entityServices.order.order.OrderSizeEntitySer
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
-import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.mapper.order.*;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
-import capstone_project.service.services.order.seal.OrderSealService;
+import capstone_project.service.services.order.seal.SealService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -76,7 +75,7 @@ public class OrderServiceImpl implements OrderService {
     private final CameraTrackingEntityService cameraTrackingEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
-    private final OrderSealService orderSealService; // Thêm OrderSealService
+    private final SealService sealService; // Thêm SealService
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -497,7 +496,7 @@ public class OrderServiceImpl implements OrderService {
         Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses = new HashMap<>();
         for (GetOrderDetailResponse detail : getOrderResponse.orderDetails()) {
             if (detail.vehicleAssignmentId() != null) {
-                UUID vehicleAssignmentId = detail.vehicleAssignmentId().id(); // lấy id
+                UUID vehicleAssignmentId = detail.vehicleAssignmentId(); // Use the UUID directly
                 getIssueImageResponses.add(
                         issueImageService.getByVehicleAssignment(vehicleAssignmentId)
                 );
@@ -537,39 +536,8 @@ public class OrderServiceImpl implements OrderService {
                 .map(GetOrderResponse::orderDetails)
                 .orElse(Collections.emptyList());
 
-        for (GetOrderDetailResponse detail : details) {
-            if (detail == null) continue;
-            var va = detail.vehicleAssignmentId();
-            if (va == null) continue;
-
-            UUID vehicleAssignmentId;
-            try {
-                vehicleAssignmentId = va.id();
-            } catch (Exception e) {
-                log.warn("Invalid vehicleAssignmentId structure for order {}: {}", orderId, e.getMessage());
-                continue;
-            }
-            if (vehicleAssignmentId == null) continue;
-            if (!processed.add(vehicleAssignmentId)) continue; // skip duplicates
-
-            try {
-                GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(vehicleAssignmentId);
-                if (issueImageResponse != null) {
-                    issuesByVehicleAssignment.put(vehicleAssignmentId, issueImageResponse);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fetch issue images for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
-            }
-
-            try {
-                List<PhotoCompletionResponse> photoCompletions = photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId);
-                if (photoCompletions != null && !photoCompletions.isEmpty()) {
-                    photosByVehicleAssignment.put(vehicleAssignmentId, photoCompletions);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fetch photo completions for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
-            }
-        }
+        // Reuse the new helper method to process vehicle assignments
+        processVehicleAssignments(details, issuesByVehicleAssignment, photosByVehicleAssignment);
 
         // contract / transactions same as before
         ContractResponse contractResponse = null;
@@ -631,39 +599,8 @@ public class OrderServiceImpl implements OrderService {
                 .map(GetOrderResponse::orderDetails)
                 .orElse(Collections.emptyList());
 
-        for (GetOrderDetailResponse detail : details) {
-            if (detail == null) continue;
-            var va = detail.vehicleAssignmentId();
-            if (va == null) continue;
-
-            UUID vehicleAssignmentId;
-            try {
-                vehicleAssignmentId = va.id();
-            } catch (Exception e) {
-                log.warn("Invalid vehicleAssignmentId structure for order {}: {}", orderId, e.getMessage());
-                continue;
-            }
-            if (vehicleAssignmentId == null) continue;
-            if (!processed.add(vehicleAssignmentId)) continue; // skip duplicates
-
-            try {
-                GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(vehicleAssignmentId);
-                if (issueImageResponse != null) {
-                    issuesByVehicleAssignment.put(vehicleAssignmentId, issueImageResponse);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fetch issue images for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
-            }
-
-            try {
-                List<PhotoCompletionResponse> photoCompletions = photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId);
-                if (photoCompletions != null && !photoCompletions.isEmpty()) {
-                    photosByVehicleAssignment.put(vehicleAssignmentId, photoCompletions);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fetch photo completions for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
-            }
-        }
+        // Reuse the new helper method to process vehicle assignments
+        processVehicleAssignments(details, issuesByVehicleAssignment, photosByVehicleAssignment);
 
         // contract / transactions same as before
         ContractResponse contractResponse = null;
@@ -737,7 +674,7 @@ public class OrderServiceImpl implements OrderService {
                     VehicleAssignmentEntity vehicleAssignment = detail.getVehicleAssignmentEntity();
                     if (vehicleAssignment != null) {
                         // Cập nhật trạng thái các seal từ IN_USE -> USED
-                        int updatedSeals = orderSealService.updateOrderSealsToUsed(vehicleAssignment);
+                        int updatedSeals = sealService.updateSealsToUsed(vehicleAssignment);
                         if (updatedSeals > 0) {
                             log.info("Đã cập nhật {} seal thành USED cho VehicleAssignment {} khi Order {} chuyển sang trạng thái {}",
                                     updatedSeals, vehicleAssignment.getId(), orderId, newStatus);
@@ -939,5 +876,43 @@ public class OrderServiceImpl implements OrderService {
 //        );
 
         return orderMapper.toCreateOrderResponse(updatedOrder);
+    }
+
+    /**
+     * Helper method to process vehicle assignments for order details
+     * Extracts issue images and photo completions for each vehicle assignment
+     */
+    private void processVehicleAssignments(
+            List<GetOrderDetailResponse> details,
+            Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment,
+            Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment
+    ) {
+        // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
+        Set<UUID> processed = new HashSet<>();
+
+        for (GetOrderDetailResponse detail : details) {
+            if (detail == null) continue;
+            UUID va = detail.vehicleAssignmentId();
+            if (va == null) continue;
+            if (!processed.add(va)) continue; // skip duplicates
+
+            try {
+                GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(va);
+                if (issueImageResponse != null) {
+                    issuesByVehicleAssignment.put(va, issueImageResponse);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fetch issue images for vehicleAssignment {}: {}", va, e.getMessage());
+            }
+
+            try {
+                List<PhotoCompletionResponse> photoCompletions = photoCompletionService.getByVehicleAssignmentId(va);
+                if (photoCompletions != null && !photoCompletions.isEmpty()) {
+                    photosByVehicleAssignment.put(va, photoCompletions);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fetch photo completions for vehicleAssignment {}: {}", va, e.getMessage());
+            }
+        }
     }
 }

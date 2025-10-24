@@ -1,7 +1,7 @@
 package capstone_project.dtos.request.pricing;
 
 import capstone_project.common.enums.CommonStatusEnum;
-import capstone_project.common.enums.VehicleRuleEnum;
+import capstone_project.common.enums.VehicleTypeRuleEnum;
 import capstone_project.common.enums.enumValidator.EnumValidator;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.DecimalMin;
@@ -9,9 +9,9 @@ import jakarta.validation.constraints.DecimalMin;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public record UpdateVehicleRuleRequest(
+public record UpdateVehicleTypeRuleRequest(
 
-        @EnumValidator(enumClass = VehicleRuleEnum.class, message = "Invalid vehicle rule name")
+        @EnumValidator(enumClass = VehicleTypeRuleEnum.class, message = "Invalid vehicle rule name")
         String vehicleRuleName,
 
         @DecimalMin(value = "0.0", inclusive = true, message = "Max weight must be >= 0")

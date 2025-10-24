@@ -1,20 +1,20 @@
 package capstone_project.service.mapper.order;
 
-import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
-import capstone_project.entity.order.order.OrderSealEntity;
+import capstone_project.dtos.response.order.seal.GetSealResponse;
+import capstone_project.entity.order.order.SealEntity;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.util.List;
 
 @Mapper(componentModel = "spring")
-public interface OrderSealMapper {
+public interface SealMapper {
     @Mapping(source = "id", target = "sealId")
     @Mapping(source = "sealCode", target = "sealCode")
     @Mapping(source = "sealAttachedImage", target = "sealAttachedImage")
     @Mapping(source = "sealRemovalTime", target = "sealRemovalTime")
     @Mapping(source = "sealRemovalReason", target = "sealRemovalReason")
-    GetOrderSealResponse toGetOrderSealResponse(OrderSealEntity orderSealEntity);
+    GetSealResponse toGetSealResponse(SealEntity sealEntity);
 
-    List<GetOrderSealResponse> toGetOrderSealResponses(List<OrderSealEntity> orderSealEntities);
+    List<GetSealResponse> toGetSealResponses(List<SealEntity> orderSealEntities);
 }

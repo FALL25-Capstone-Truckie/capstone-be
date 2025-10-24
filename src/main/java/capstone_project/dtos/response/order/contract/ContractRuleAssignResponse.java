@@ -16,10 +16,10 @@ import java.util.UUID;
 @Builder
 public class ContractRuleAssignResponse {
     private int vehicleIndex;
-    private UUID vehicleRuleId;
+    private UUID vehicleTypeRuleId;
     //    private int numOfVehicles;
 //    private Integer numOfVehicles;
-    private String vehicleRuleName;
+    private String vehicleTypeRuleName;
     private BigDecimal currentLoad;
     //    private List<UUID> assignedDetails = new ArrayList<>();
     private List<OrderDetailForPackingResponse> assignedDetails = new ArrayList<>();

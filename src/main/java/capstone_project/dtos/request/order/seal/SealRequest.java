@@ -5,7 +5,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
-public record OrderSealRequest(
+public record SealRequest(
     @NotNull(message = "Vehicle assignment ID không được bỏ trống")
     UUID vehicleAssignmentId,
     
