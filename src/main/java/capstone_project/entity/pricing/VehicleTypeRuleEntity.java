@@ -19,10 +19,10 @@ import java.time.LocalDateTime;
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class VehicleRuleEntity extends BaseEntity {
+public class VehicleTypeRuleEntity extends BaseEntity {
     @Size(max = 100)
     @Column(name = "vehicle_rule_name", length = 100)
-    private String vehicleRuleName;
+    private String vehicleTypeRuleName;
 
     @Column(name = "min_weight")
     private BigDecimal minWeight;

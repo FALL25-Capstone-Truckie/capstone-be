@@ -5,7 +5,7 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public enum VehicleRuleEnum {
+public enum VehicleTypeRuleEnum {
     TRUCK_0_5_TON,
 
     TRUCK_1_25_TON,

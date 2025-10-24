@@ -21,7 +21,7 @@ public class BasingPriceEntity extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_rule_id")
-    private VehicleRuleEntity vehicleRuleEntity;
+    private VehicleTypeRuleEntity vehicleTypeRuleEntity;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "distance_rule_id")

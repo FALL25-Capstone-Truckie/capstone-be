@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public record FullVehicleRuleResponse (
+public record FullVehicleTypeRuleResponse(
         String id,
         String vehicleRuleName,
         BigDecimal minWeight,
@@ -25,7 +25,7 @@ public record FullVehicleRuleResponse (
         CategoryResponse category,
         VehicleTypeResponse vehicleTypeEntity,
 
-        List<GetBasingPriceNoVehicleRuleResponse> basingPrices
+        List<GetBasingPriceNoVehicleTypeRuleResponse> basingPrices
 //        DistanceRuleResponse distanceRule
 ) {
 }

@@ -5,7 +5,7 @@ import capstone_project.dtos.response.issue.SimpleIssueResponse;
 import capstone_project.dtos.response.issue.SimpleStaffResponse;
 import capstone_project.dtos.response.order.*;
 import capstone_project.dtos.response.order.contract.SimpleContractResponse;
-import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
+import capstone_project.dtos.response.order.seal.GetSealResponse;
 import capstone_project.dtos.response.order.transaction.SimpleTransactionResponse;
 import capstone_project.dtos.response.issue.GetIssueImageResponse;
 import capstone_project.dtos.response.order.GetOrderDetailResponse;
@@ -14,12 +14,11 @@ import capstone_project.dtos.response.order.PhotoCompletionResponse;
 import capstone_project.dtos.response.order.contract.ContractResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.entity.auth.UserEntity;
-import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
 import capstone_project.service.services.order.order.JourneyHistoryService;
-import capstone_project.service.services.order.seal.OrderSealService;
+import capstone_project.service.services.order.seal.SealService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -34,7 +33,7 @@ import java.util.stream.Collectors;
 public class SimpleOrderMapper {
     private final UserEntityService userEntityService;
     private final VehicleEntityService vehicleEntityService;
-    private final OrderSealService orderSealService;
+    private final SealService sealService;
     private final JourneyHistoryService journeyHistoryService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
@@ -220,10 +219,10 @@ public class SimpleOrderMapper {
         }
 
         // Get all order seals for this vehicle assignment (null-safe)
-        List<GetOrderSealResponse> orderSeals = Collections.emptyList();
+        List<GetSealResponse> orderSeals = Collections.emptyList();
         try {
             UUID vehicleAssignmentId = vaResponse.id();
-            List<GetOrderSealResponse> raw = orderSealService.getAllOrderSealsByVehicleAssignmentId(vehicleAssignmentId);
+            List<GetSealResponse> raw = sealService.getAllSealsByVehicleAssignmentId(vehicleAssignmentId);
             if (raw != null) orderSeals = raw;
         } catch (Exception e) {
             // Keep orderSeals as empty list

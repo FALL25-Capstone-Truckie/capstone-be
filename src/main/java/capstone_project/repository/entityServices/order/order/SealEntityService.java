@@ -1,21 +1,21 @@
 package capstone_project.repository.entityServices.order.order;
 
-import capstone_project.entity.order.order.OrderSealEntity;
+import capstone_project.entity.order.order.SealEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.common.BaseEntityService;
 
 import java.util.List;
 import java.util.UUID;
 
-public interface OrderSealEntityService extends BaseEntityService<OrderSealEntity, UUID> {
-    List<OrderSealEntity> saveAll(List<OrderSealEntity> orderSealEntities);
+public interface SealEntityService extends BaseEntityService<SealEntity, UUID> {
+    List<SealEntity> saveAll(List<SealEntity> orderSealEntities);
 
-    List<OrderSealEntity> findBySealCode(String sealCode);
+    List<SealEntity> findBySealCode(String sealCode);
 
-    OrderSealEntity findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment, String status);
+    SealEntity findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment, String status);
 
     // New method to find all order seals for a vehicle assignment regardless of status
-    List<OrderSealEntity> findAllByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment);
+    List<SealEntity> findAllByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment);
 
     /**
      * Tìm tất cả OrderSeal theo VehicleAssignment và trạng thái
@@ -23,5 +23,5 @@ public interface OrderSealEntityService extends BaseEntityService<OrderSealEntit
      * @param status trạng thái của seal cần tìm
      * @return danh sách các OrderSeal tương ứng
      */
-    List<OrderSealEntity> findAllByVehicleAssignmentAndStatus(VehicleAssignmentEntity vehicleAssignment, String status);
+    List<SealEntity> findAllByVehicleAssignmentAndStatus(VehicleAssignmentEntity vehicleAssignment, String status);
 }

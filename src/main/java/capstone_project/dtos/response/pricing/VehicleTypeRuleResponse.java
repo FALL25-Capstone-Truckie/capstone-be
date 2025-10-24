@@ -6,7 +6,7 @@ import capstone_project.dtos.response.vehicle.VehicleTypeResponse;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public record VehicleRuleResponse(
+public record VehicleTypeRuleResponse(
         String id,
         String vehicleRuleName,
         BigDecimal minWeight,
