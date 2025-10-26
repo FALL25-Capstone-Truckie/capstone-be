@@ -20,7 +20,6 @@ import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
-import capstone_project.repository.entityServices.device.CameraTrackingEntityService;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
@@ -72,7 +71,6 @@ public class OrderServiceImpl implements OrderService {
     private final StaffOrderMapper staffOrderMapper;
     private final DriverOrderMapper driverOrderMapper;
     private final PenaltyHistoryEntityService penaltyHistoryEntityService;
-    private final CameraTrackingEntityService cameraTrackingEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final OrderStatusWebSocketService orderStatusWebSocketService;
     private final SealService sealService; // Thêm SealService

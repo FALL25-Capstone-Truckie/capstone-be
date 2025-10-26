@@ -1,4 +1,4 @@
-package capstone_project.entity.order.conformation;
+package capstone_project.entity.order.confirmation;
 
 import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -8,12 +8,12 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 @Entity
-@Table(name = "photo_completions", schema = "public", catalog = "capstone-project")
+@Table(name = "packing_proof_images", schema = "public", catalog = "capstone-project")
 @Data
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
-public class PhotoCompletionEntity extends BaseEntity {
+public class PackingProofImageEntity extends BaseEntity {
     @Column(name = "image_url", length = Integer.MAX_VALUE)
     private String imageUrl;
 
@@ -24,5 +24,4 @@ public class PhotoCompletionEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
     private VehicleAssignmentEntity vehicleAssignmentEntity;
-
 }

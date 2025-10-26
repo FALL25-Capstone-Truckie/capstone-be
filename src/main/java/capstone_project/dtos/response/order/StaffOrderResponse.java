@@ -12,7 +12,6 @@ import java.util.UUID;
  */
 public record StaffOrderResponse(
     String id,
-    BigDecimal totalPrice,
     BigDecimal depositAmount,
     String notes,
     int totalQuantity,

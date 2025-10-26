@@ -69,11 +69,8 @@ public class SimpleOrderMapper {
             }
         } catch (Exception ignored) {
         }
-        if (effectiveTotal == null && orderResponse != null) {
-            effectiveTotal = orderResponse.totalPrice();
-        }
 
-        // Calculate deposit amount based on contract adjusted value or total price
+        // Calculate deposit amount based on contract adjusted value
         BigDecimal adjustedValue = contractResponse != null ? contractResponse.adjustedValue() : null;
         BigDecimal depositAmount = calculateDepositAmount(effectiveTotal, adjustedValue);
 
@@ -150,7 +147,6 @@ public class SimpleOrderMapper {
 
         return new SimpleOrderResponse(
                 response.id(),
-                effectiveTotal,
                 depositAmount,
                 response.notes(),
                 response.totalQuantity(),
