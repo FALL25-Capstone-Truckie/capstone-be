@@ -5,6 +5,7 @@ import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.InternalServerException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.common.utils.UserContextUtils;
+import capstone_project.dtos.request.notification.NotificationRequest;
 import capstone_project.dtos.request.order.CreateOrderDetailRequest;
 import capstone_project.dtos.request.order.CreateOrderRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
@@ -34,6 +35,7 @@ import capstone_project.service.mapper.order.OrderMapper;
 import capstone_project.service.mapper.order.SimpleOrderMapper;
 import capstone_project.service.mapper.order.StaffOrderMapper;
 import capstone_project.service.services.issue.IssueImageService;
+import capstone_project.service.services.notification.NotificationService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
@@ -73,6 +75,7 @@ public class OrderServiceImpl implements OrderService {
     private final PenaltyHistoryEntityService penaltyHistoryEntityService;
     private final CameraTrackingEntityService cameraTrackingEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
+    private final NotificationService notificationService;
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -147,8 +150,22 @@ public class OrderServiceImpl implements OrderService {
                     .build();
             OrderEntity saveOrder = orderEntityService.save(newOrder);
 
-
             saveOrder.setOrderDetailEntities(batchCreateOrderDetails(listCreateOrderDetailRequests, saveOrder, orderRequest.estimateStartTime()));
+
+            NotificationRequest notification = NotificationRequest.builder()
+                    .type(NotificationTypeEnum.ORDER_CREATED.getType())
+                    .title(NotificationTypeEnum.ORDER_CREATED.getTitle())
+                    .message(NotificationTypeEnum.ORDER_CREATED.getMessage())
+                    .entityType(DatabaseTableEnum.ORDERS.getType())
+                    .entityId(newOrder.getId())
+                    .userId(newOrder.getSender().getId())
+                    .timestamp(LocalDateTime.now())
+                    .status(NotificationStatusEnum.UNREAD.getType())
+                    .build();
+
+            // Send to the specific customer
+            notificationService.sendUserNotification(newOrder.getSender().getId(), notification);
+
             return orderMapper.toCreateOrderResponse(saveOrder);
 
         } catch (Exception e) {

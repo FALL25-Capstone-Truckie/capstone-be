@@ -1,76 +1,87 @@
 package capstone_project.common.enums;
 
 public enum DatabaseTableEnum {
-    ADDRESSES,
-    BASING_PRICES,
-    CAMERA_TRACKINGS,
-    CATEGORIES,
-    CATEGORY_PRICING_DETAIL,
-    CONTRACT_RULE_ORDER_DETAIL,
-    CONTRACTS,
-    CONTRACT_RULES,
-    CONTRACT_SETTINGS,
-    
+    // Table enums
+    ADDRESSES("addresses"),
+    BASING_PRICES("basing_prices"),
+    CAMERA_TRACKINGS("camera_trackings"),
+    CATEGORIES("categories"),
+    CATEGORY_PRICING_DETAIL("category_pricing_detail"),
+    CONTRACT_RULE_ORDER_DETAIL("contract_rule_order_detail"),
+    CONTRACTS("contracts"),
+    CONTRACT_RULES("contract_rules"),
+    CONTRACT_SETTINGS("contract_settings"),
+
     // Order related tables
-    ORDERS,
-    ORDER_DETAILS,
-    ORDER_SIZES,
-    ORDER_SEALS,
-    ORDER_DETAIL_SEALS,
-    BILL_OF_LADINGS,
-    PHOTO_COMPLETIONS,
-    
+    ORDERS("orders"),
+    ORDER_DETAILS("order_details"),
+    ORDER_SIZES("order_sizes"),
+    ORDER_SEALS("order_seals"),
+    ORDER_DETAIL_SEALS("order_detail_seals"),
+    BILL_OF_LADINGS("bill_of_ladings"),
+    PHOTO_COMPLETIONS("photo_completions"),
+
     // Vehicle related tables
-    VEHICLES,
-    VEHICLE_ASSIGNMENTS,
-    VEHICLE_MAINTENANCES,
-    VEHICLE_TYPES,
-    VEHICLE_RULES,
-    MAINTENANCE_TYPES,
-    
+    VEHICLES("vehicles"),
+    VEHICLE_ASSIGNMENTS("vehicle_assignments"),
+    VEHICLE_MAINTENANCES("vehicle_maintenances"),
+    VEHICLE_TYPES("vehicle_types"),
+    VEHICLE_RULES("vehicle_rules"),
+    MAINTENANCE_TYPES("maintenance_types"),
+
     // Chat related tables
-    CHAT,
-    CHAT_MESSAGE,
-    CHAT_ROOM,
-    CHAT_ROOM_USER,
-    
+    CHAT("chat"),
+    CHAT_MESSAGE("chat_message"),
+    CHAT_ROOM("chat_room"),
+    CHAT_ROOM_USER("chat_room_user"),
+
     // User related tables
-    USERS,
-    CUSTOMERS,
-    DRIVERS,
-    MANAGERS,
-    ROLE,
-    
+    USERS("users"),
+    CUSTOMERS("customers"),
+    DRIVERS("drivers"),
+    MANAGERS("managers"),
+    ROLE("role"),
+
     // Device related tables
-    DEVICES,
-    DEVICE_TYPES,
-    
+    DEVICES("devices"),
+    DEVICE_TYPES("device_types"),
+
     // Issue related tables
-    ISSUES,
-    ISSUE_TYPES,
-    ISSUE_IMAGES,
-    
+    ISSUES("issues"),
+    ISSUE_TYPES("issue_types"),
+    ISSUE_IMAGES("issue_images"),
+
     // Distance related tables
-    DISTANCES,
-    DISTANCE_RULES,
-    
+    DISTANCES("distances"),
+    DISTANCE_RULES("distance_rules"),
+
     // Penalty related tables
-    PENALTIES,
-    
+    PENALTIES("penalties"),
+
     // Seal related tables
-    SEALS,
-    
+    SEALS("seals"),
+
     // Journey related tables
-    JOURNEY_HISTORIES,
-    
+    JOURNEY_HISTORIES("journey_histories"),
+
     // Settings related tables
-    SYSTEM_SETTINGS,
-    WEIGHT_UNIT_SETTINGS,
-    
+    SYSTEM_SETTINGS("system_settings"),
+    WEIGHT_UNIT_SETTINGS("weight_unit_settings"),
+
     // Transaction related tables
-    PAYOS_TRANSACTIONS,
-    STRIPE_TRANSACTIONS,
-    
+    PAYOS_TRANSACTIONS("payos_transactions"),
+    STRIPE_TRANSACTIONS("stripe_transactions"),
+
     // Notification related tables
-    NOTIFICATIONS
+    NOTIFICATIONS("notifications");
+
+    private final String type;
+
+    DatabaseTableEnum(String type) {
+        this.type = type;
+    }
+
+    public String getType() {
+        return type;
+    }
 }
