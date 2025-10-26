@@ -891,9 +891,6 @@ public class BillOfLandingServiceImpl implements BillOfLandingService {
                 freightCharge = contract.getTotalValue();
             }
         }
-        if (freightCharge.compareTo(BigDecimal.ZERO) == 0 && order.getTotalPrice() != null) {
-            freightCharge = order.getTotalPrice();
-        }
 
         // Calculate deposit: assume standard deposit rate (e.g., 30% of freight charge)
         // If no contract settings available, use 30% as default

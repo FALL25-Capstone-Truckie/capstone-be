@@ -13,7 +13,6 @@ import java.util.List;
 
 public record GetOrderResponse(
     String id,
-    BigDecimal totalPrice,
     String notes,
     Integer totalQuantity,
     String orderCode,

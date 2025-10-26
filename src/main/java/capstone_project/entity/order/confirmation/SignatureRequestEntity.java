@@ -1,4 +1,4 @@
-package capstone_project.entity.order.conformation;
+package capstone_project.entity.order.confirmation;
 
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.common.BaseEntity;

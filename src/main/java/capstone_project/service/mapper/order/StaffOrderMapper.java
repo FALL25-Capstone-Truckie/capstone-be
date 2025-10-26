@@ -13,12 +13,10 @@ import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.dtos.response.order.PhotoCompletionResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.auth.UserEntity;
-import capstone_project.entity.device.CameraTrackingEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.user.driver.PenaltyHistoryEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.auth.UserEntityService;
-import capstone_project.repository.entityServices.device.CameraTrackingEntityService;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.setting.ContractSettingEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
@@ -44,7 +42,6 @@ import java.util.stream.Collectors;
 public class StaffOrderMapper {
 
     private final PenaltyHistoryEntityService penaltyHistoryEntityService;
-    private final CameraTrackingEntityService cameraTrackingEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
     private final UserEntityService userEntityService;
     private final DriverEntityService driverEntityService;
@@ -74,11 +71,8 @@ public class StaffOrderMapper {
             }
         } catch (Exception ignored) {
         }
-        if (effectiveTotal == null && orderResponse != null) {
-            effectiveTotal = orderResponse.totalPrice();
-        }
 
-        // Calculate deposit amount based on contract adjusted value or total price
+        // Calculate deposit amount based on contract adjusted value
         BigDecimal adjustedValue = contractResponse != null ? contractResponse.adjustedValue() : null;
         BigDecimal depositAmount = calculateDepositAmount(effectiveTotal, adjustedValue);
 
@@ -143,7 +137,6 @@ public class StaffOrderMapper {
 
         return new StaffOrderResponse(
                 response.id(),
-                effectiveTotal,
                 depositAmount,
                 response.notes(),
                 response.totalQuantity(),
@@ -218,7 +211,6 @@ public class StaffOrderMapper {
                 vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver2() != null ?
                         vehicleAssignmentEntity.getDriver2().getUser().getId() : vehicleAssignmentResponse.driver_id_2());
 
-        List<CameraTrackingResponse> cameraTrackings = getCameraTrackingsByVehicleAssignmentId(vehicleAssignmentId);
         VehicleFuelConsumptionResponse fuelConsumption = getFuelConsumptionByVehicleAssignmentId(vehicleAssignmentId);
         List<String> photoCompletions = getPhotoCompletionsByVehicleAssignmentId(vehicleAssignmentId);
         // Get issues for this vehicle assignment (null-safe, full lookup)
@@ -325,7 +317,6 @@ public class StaffOrderMapper {
                 status,
                 trackingCode,
                 penalties,
-                cameraTrackings,
                 fuelConsumption,
                 orderSeals,
                 journeyHistories,
@@ -406,27 +397,6 @@ public class StaffOrderMapper {
         }
     }
 
-    private List<CameraTrackingResponse> getCameraTrackingsByVehicleAssignmentId(UUID vehicleAssignmentId) {
-        if (vehicleAssignmentId == null) return new ArrayList<>();
-
-        try {
-            List<CameraTrackingEntity> cameraTrackings = cameraTrackingEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
-            return cameraTrackings.stream()
-                    .map(entity -> new CameraTrackingResponse(
-                            entity.getId(),
-                            entity.getVideoUrl(),
-                            entity.getTrackingAt(),
-                            entity.getStatus(),
-                            null,
-                            entity.getDeviceEntity() != null ?
-                                    entity.getDeviceEntity().getDeviceCode() + " " + entity.getDeviceEntity().getModel() : null
-                    ))
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.warn("Could not fetch camera trackings for vehicle assignment {}: {}", vehicleAssignmentId, e.getMessage());
-            return new ArrayList<>();
-        }
-    }
 
     private VehicleFuelConsumptionResponse getFuelConsumptionByVehicleAssignmentId(UUID vehicleAssignmentId) {
         if (vehicleAssignmentId == null) return null;
