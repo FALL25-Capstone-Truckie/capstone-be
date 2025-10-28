@@ -744,7 +744,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public CreateOrderResponse updateToOngoingDelivered(UUID orderId) {
-        log.info("Updating order {} to ONGOING_DELIVERED status", orderId);
+            
 
         // Validate order ID
         if (orderId == null) {
@@ -761,13 +761,20 @@ public class OrderServiceImpl implements OrderService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
 
-        // Validate current status is ON_DELIVERED
-        if (!OrderStatusEnum.ON_DELIVERED.name().equals(order.getStatus())) {
+        // Validate current status is ON_DELIVERED or already ONGOING_DELIVERED
+        if (!OrderStatusEnum.ON_DELIVERED.name().equals(order.getStatus()) && 
+            !OrderStatusEnum.ONGOING_DELIVERED.name().equals(order.getStatus())) {
             throw new BadRequestException(
-                    String.format("Cannot update to ONGOING_DELIVERED. Current status is %s, expected ON_DELIVERED", 
+                    String.format("Cannot update to ONGOING_DELIVERED. Current status is %s, expected ON_DELIVERED or ONGOING_DELIVERED", 
                             order.getStatus()),
                     ErrorEnum.INVALID_REQUEST.getErrorCode()
             );
+        }
+
+        // If already ONGOING_DELIVERED, just return current order
+        if (OrderStatusEnum.ONGOING_DELIVERED.name().equals(order.getStatus())) {
+            log.info("Order {} already in ONGOING_DELIVERED status, returning current state", orderId);
+            return orderMapper.toCreateOrderResponse(order);
         }
 
         // Update status to ONGOING_DELIVERED

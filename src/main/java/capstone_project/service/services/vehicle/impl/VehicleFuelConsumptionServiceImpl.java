@@ -67,12 +67,23 @@ public class VehicleFuelConsumptionServiceImpl implements VehicleFuelConsumption
 
         final var savedEntity = vehicleFuelConsumptionEntityService.save(entity);
 
-        // Update order status to PICKING_UP and send WebSocket notification
+        // Update order status to PICKING_UP and then to ONGOING_DELIVERED
         final var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignmentEntity.getId());
         if (orderOpt.isPresent()) {
             final var orderEntity = orderOpt.get();
+            
+            // First update to PICKING_UP
             orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.PICKING_UP);
             log.info("Updated order {} status to PICKING_UP after driver submitted odometer start", orderEntity.getOrderCode());
+            
+            // Then update to ONGOING_DELIVERED to show delivery confirmation button
+            try {
+                orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.ONGOING_DELIVERED);
+                log.info("Updated order {} status to ONGOING_DELIVERED for delivery confirmation", orderEntity.getOrderCode());
+            } catch (Exception e) {
+                log.warn("Could not update order {} to ONGOING_DELIVERED: {}", orderEntity.getOrderCode(), e.getMessage());
+                // Don't throw - PICKING_UP is sufficient for the flow to work
+            }
         }
 
         return mapToResponse(savedEntity);
