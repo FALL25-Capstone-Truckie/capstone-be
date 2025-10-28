@@ -16,6 +16,24 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
 
     List<VehicleAssignmentEntity> findByVehicleEntityId(UUID vehicleEntityId);
 
+    // Add missing method for finding by vehicle ID and status list
+    List<VehicleAssignmentEntity> findByVehicleEntityIdAndStatusIn(UUID vehicleId, List<String> statuses);
+
+    /**
+     * Find active vehicle assignments with their orders for real-time tracking
+     * Only return assignments that have active order details
+     */
+    @Query(value = """
+            SELECT DISTINCT va.*, od.order_id as order_id
+            FROM vehicle_assignments va
+            JOIN order_details od ON od.vehicle_assignment_id = va.id
+            WHERE va.vehicle_id = :vehicleId
+            AND od.status IN :orderStatuses
+            """, nativeQuery = true)
+    List<VehicleAssignmentEntity> findActiveAssignmentsWithOrdersByVehicleId(
+            @Param("vehicleId") UUID vehicleId,
+            @Param("orderStatuses") List<String> orderStatuses);
+
     @Query(value = """
         SELECT va.id,
                va.driver_id_1,
@@ -118,4 +136,40 @@ public interface VehicleAssignmentRepository extends BaseRepository<VehicleAssig
      */
     @Query("SELECT va FROM VehicleAssignmentEntity va WHERE va.driver2.id = :driverId ORDER BY va.createdAt DESC")
     Optional<VehicleAssignmentEntity> findLatestAssignmentByDriver2Id(@Param("driverId") UUID driverId);
+
+    /**
+     * Find vehicle assignment with eagerly fetched driver relationships
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va " +
+           "LEFT JOIN FETCH va.driver1 d1 " +
+           "LEFT JOIN FETCH d1.user u1 " +
+           "LEFT JOIN FETCH va.driver2 d2 " +
+           "LEFT JOIN FETCH d2.user u2 " +
+           "WHERE va.id = :assignmentId")
+    Optional<VehicleAssignmentEntity> findByIdWithDrivers(@Param("assignmentId") UUID assignmentId);
+
+    /**
+     * Find all vehicle assignments by vehicle ID with eagerly fetched driver relationships
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va " +
+           "LEFT JOIN FETCH va.driver1 d1 " +
+           "LEFT JOIN FETCH d1.user u1 " +
+           "LEFT JOIN FETCH va.driver2 d2 " +
+           "LEFT JOIN FETCH d2.user u2 " +
+           "WHERE va.vehicleEntity.id = :vehicleId")
+    List<VehicleAssignmentEntity> findByVehicleEntityIdWithDrivers(@Param("vehicleId") UUID vehicleId);
+
+    /**
+     * Tìm tất cả các assignment của tài xế (cả driver1 và driver2) kể từ một thời điểm cụ thể
+     * @param driverId ID của tài xế
+     * @param cutoffDate Ngày bắt đầu tìm kiếm
+     * @return Danh sách các assignment của tài xế từ cutoffDate đến hiện tại
+     */
+    @Query("SELECT va FROM VehicleAssignmentEntity va " +
+           "WHERE (va.driver1.id = :driverId OR va.driver2.id = :driverId) " +
+           "AND va.createdAt >= :cutoffDate " +
+           "ORDER BY va.createdAt DESC")
+    List<VehicleAssignmentEntity> findAssignmentsForDriverSince(
+            @Param("driverId") UUID driverId,
+            @Param("cutoffDate") LocalDateTime cutoffDate);
 }

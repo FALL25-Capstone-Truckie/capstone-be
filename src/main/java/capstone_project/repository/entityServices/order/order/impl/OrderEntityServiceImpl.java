@@ -1,6 +1,8 @@
 package capstone_project.repository.entityServices.order.order.impl;
 
+import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.repository.repositories.order.order.OrderDetailRepository;
 import capstone_project.repository.repositories.order.order.OrderRepository;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,7 @@ import java.util.UUID;
 public class OrderEntityServiceImpl implements OrderEntityService {
 
     private final OrderRepository orderRepository;
+    private final OrderDetailRepository orderDetailRepository;
 
     @Override
     public OrderEntity save(OrderEntity entity) {
@@ -110,5 +113,15 @@ public class OrderEntityServiceImpl implements OrderEntityService {
     @Override
     public List<Object[]> topDriverByMonthAndYear(Integer month, Integer year, int amount) {
         return orderRepository.topDriverByMonthAndYear(month, year, amount);
+    }
+
+    @Override
+    public Optional<OrderEntity> findByOrderCode(String orderCode) {
+        return orderRepository.findByOrderCode(orderCode);
+    }
+    
+    @Override
+    public Optional<OrderDetailEntity> findOrderDetailByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        return orderDetailRepository.findFirstByVehicleAssignmentEntityId(vehicleAssignmentId);
     }
 }

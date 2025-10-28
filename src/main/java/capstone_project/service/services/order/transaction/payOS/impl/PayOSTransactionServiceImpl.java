@@ -5,6 +5,7 @@ import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.config.payment.PayOS.PayOSProperties;
 import capstone_project.dtos.request.room.CreateRoomRequest;
+import capstone_project.dtos.request.room.CreateRoomRequest;
 import capstone_project.dtos.response.order.transaction.GetTransactionStatusResponse;
 import capstone_project.dtos.response.order.transaction.TransactionResponse;
 import capstone_project.entity.auth.UserEntity;
@@ -225,11 +226,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         BigDecimal totalValue = contractEntity.getTotalValue();
         log.info("Total value for contract {} is {}", contractId, totalValue);
-        BigDecimal supportedValue = contractEntity.getSupportedValue();
-        log.info("Supported value for contract {} is {}", contractId, supportedValue);
+        BigDecimal adjustedValue = contractEntity.getAdjustedValue();
+        log.info("Supported value for contract {} is {}", contractId, adjustedValue);
 
-        if (supportedValue != null && supportedValue.compareTo(BigDecimal.ZERO) > 0) {
-            totalValue = supportedValue;
+        if (adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0) {
+            totalValue = adjustedValue;
         }
 
         if (totalValue == null || totalValue.compareTo(BigDecimal.ZERO) <= 0) {
@@ -455,17 +456,24 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
             case PAID -> {
                 BigDecimal totalValue = validationTotalValue(contract.getId());
+                BigDecimal totalPaidAmount = transactionEntityService.sumPaidAmountByContractId(contract.getId());
 
-                if (transaction.getAmount().compareTo(totalValue) < 0) {
-                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
-                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+                log.info(">>>> DEBUG: Total Value = {}, Total Paid Amount from DB = {}", totalValue, totalPaidAmount);
 
-                    //Create room for order (Bao)
-                    CreateRoomRequest createRoomRequest = new CreateRoomRequest(order.getId().toString(),null);
-                    roomService.createRoom(createRoomRequest);
-                } else {
+                if (totalPaidAmount == null) {
+                    totalPaidAmount = BigDecimal.ZERO;
+                }
+
+                if (totalPaidAmount.compareTo(totalValue) >= 0) {
+                    log.info("Test1");
                     contract.setStatus(ContractStatusEnum.PAID.name());
                     orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.FULLY_PAID);
+                } else {
+                    log.info("Test2");
+                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
+                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+                    CreateRoomRequest createRoomRequest = new CreateRoomRequest(order.getId().toString(),null);
+                    roomService.createRoom(createRoomRequest);
                 }
             }
 
@@ -486,6 +494,63 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         contractEntityService.save(contract);
         log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
     }
+
+//    private void updateContractStatusIfNeeded(TransactionEntity transaction) {
+//        ContractEntity contract = transaction.getContractEntity();
+//        if (contract == null) {
+//            log.warn("Transaction {} has no contract linked", transaction.getId());
+//            throw new NotFoundException(
+//                    "No contract linked to transaction",
+//                    ErrorEnum.NOT_FOUND.getErrorCode()
+//            );
+//        }
+//
+//        OrderEntity order = contract.getOrderEntity();
+//        if (order == null) {
+//            log.warn("No order found for contract {}", contract.getId());
+//            throw new NotFoundException(
+//                    "No order found for contract",
+//                    ErrorEnum.NOT_FOUND.getErrorCode());
+//        }
+//
+//        OrderService orderService = orderServiceObjectProvider.getIfAvailable();
+//        if (orderService == null) {
+//            log.warn("No order found for contract {}", contract.getId());
+//            throw new NotFoundException(
+//                    "No order found for contract",
+//                    ErrorEnum.NOT_FOUND.getErrorCode());
+//        }
+//
+//        switch (TransactionEnum.valueOf(transaction.getStatus())) {
+//            case PAID -> {
+//                BigDecimal totalValue = validationTotalValue(contract.getId());
+//
+//                if (transaction.getAmount().compareTo(totalValue) < 0) {
+//                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
+//                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+//                } else {
+//                    contract.setStatus(ContractStatusEnum.PAID.name());
+//                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.FULLY_PAID);
+//                }
+//            }
+//
+//            case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
+//
+//            case REFUNDED -> {
+//                contract.setStatus(ContractStatusEnum.REFUNDED.name());
+//                order.setStatus(OrderStatusEnum.RETURNED.name());
+//            }
+//            default -> {
+//            }
+//        }
+//
+//        if (TransactionEnum.valueOf(transaction.getStatus()) == TransactionEnum.REFUNDED) {
+//            orderEntityService.save(order);
+//        }
+//
+//        contractEntityService.save(contract);
+//        log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
+//    }
 
 
     @Override

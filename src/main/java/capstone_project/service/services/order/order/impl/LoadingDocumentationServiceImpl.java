@@ -5,18 +5,17 @@ import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.dtos.request.order.CreatePackingProofImageRequest;
 import capstone_project.dtos.request.order.LoadingDocumentationRequest;
-import capstone_project.dtos.request.order.seal.OrderSealRequest;
+import capstone_project.dtos.request.order.seal.SealRequest;
 import capstone_project.dtos.response.order.LoadingDocumentationResponse;
 import capstone_project.dtos.response.order.PackingProofImageResponse;
-import capstone_project.dtos.response.order.seal.GetOrderSealResponse;
-import capstone_project.dtos.response.order.seal.GetSealFullResponse;
-import capstone_project.entity.order.order.OrderEntity;
+import capstone_project.dtos.response.order.seal.GetSealResponse;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.service.services.order.order.LoadingDocumentationService;
+import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.order.PackingProofImageService;
-import capstone_project.service.services.order.seal.OrderSealService;
+import capstone_project.service.services.order.seal.SealService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,7 +25,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -34,9 +32,10 @@ import java.util.UUID;
 @Slf4j
 public class LoadingDocumentationServiceImpl implements LoadingDocumentationService {
     private final PackingProofImageService packingProofImageService;
-    private final OrderSealService orderSealService;
+    private final SealService sealService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final OrderEntityService orderEntityService;
+    private final OrderService orderService;
 
     @Override
     @Transactional
@@ -68,13 +67,13 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
         }
 
         // Upload seal image and create seal with the provided code
-        OrderSealRequest sealRequest = new OrderSealRequest(
+        SealRequest sealRequest = new SealRequest(
                 request.vehicleAssignmentId(),
                 sealImage,
                 request.sealCode()
         );
-        orderSealService.assignSealForVehicleAssignment(sealRequest);
-        GetOrderSealResponse sealInfo = orderSealService.getActiveOrderSealByVehicleAssignmentId(request.vehicleAssignmentId());
+        sealService.confirmSealAttachment(sealRequest);
+        GetSealResponse sealInfo = sealService.getSealByVehicleAssignmentId(request.vehicleAssignmentId());
 
         // Update order status to TRANSPORTING
         updateRelatedOrderStatus(vehicleAssignment);
@@ -101,8 +100,8 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
                 packingProofImageService.getByVehicleAssignmentId(vehicleAssignmentId);
 
         // Get seal information
-        GetOrderSealResponse sealResponse =
-                orderSealService.getActiveOrderSealByVehicleAssignmentId(vehicleAssignmentId);
+        GetSealResponse sealResponse =
+                sealService.getSealByVehicleAssignmentId(vehicleAssignmentId);
 
         return new LoadingDocumentationResponse(
                 vehicleAssignmentId,
@@ -115,11 +114,25 @@ public class LoadingDocumentationServiceImpl implements LoadingDocumentationServ
      * Updates the order status to TRANSPORTING once loading is documented
      */
     private void updateRelatedOrderStatus(VehicleAssignmentEntity vehicleAssignment) {
-        final var orderOpt = orderEntityService.findVehicleAssignmentOrder(vehicleAssignment.getId());
-        if (orderOpt.isPresent()) {
-            final var orderEntity = orderOpt.get();
-            orderEntity.setStatus(OrderStatusEnum.ON_DELIVERED.name());
-            orderEntityService.save(orderEntity);
+        // Instead of using complex query, get order through OrderDetail relationship
+        // This avoids the "Query did not return a unique result" issue
+        try {
+            // Query OrderDetail by vehicle assignment (should be unique per assignment)
+            var orderDetailOpt = orderEntityService.findOrderDetailByVehicleAssignmentId(vehicleAssignment.getId());
+            
+            if (orderDetailOpt.isPresent()) {
+                var orderDetail = orderDetailOpt.get();
+                var orderEntity = orderDetail.getOrderEntity();
+                
+                if (orderEntity != null) {
+                    // Use OrderService to update status and send WebSocket notification
+                    orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.ON_DELIVERED);
+                    log.info("Updated order {} status to ON_DELIVERED after loading documentation", orderEntity.getOrderCode());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error updating order status after loading documentation: {}", e.getMessage(), e);
+            // Don't throw exception - loading documentation was successful, just status update failed
         }
     }
 }
