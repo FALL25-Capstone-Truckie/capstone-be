@@ -3,6 +3,7 @@ package capstone_project.service.services.room.impl;
 import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
+import capstone_project.dtos.request.room.ChatImageRequest;
 import capstone_project.dtos.request.room.ChatMessageDTO;
 import capstone_project.dtos.request.room.MessageRequest;
 import capstone_project.dtos.response.room.ChatPageResponse;
@@ -10,6 +11,7 @@ import capstone_project.dtos.response.room.ChatResponseDTO;
 import capstone_project.entity.chat.ChatEntity;
 import capstone_project.entity.chat.RoomEntity;
 import capstone_project.service.mapper.room.ChatMapper;
+import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.room.ChatService;
 import com.google.api.core.ApiFuture;
 import com.google.api.core.ApiFutureCallback;
@@ -18,9 +20,12 @@ import com.google.cloud.firestore.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -31,6 +36,7 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class ChatServiceImpl implements ChatService {
     private final Firestore firestore;
+    private final CloudinaryService cloudinaryService;
     private final ChatMapper chatMapper;
 
     @Override
@@ -80,7 +86,8 @@ public class ChatServiceImpl implements ChatService {
                 .document(roomId)
                 .collection(FirebaseCollectionEnum.Chats.name());
 
-        Query query = messagesRef.orderBy("createdAt", Query.Direction.DESCENDING).limit(pageSize);
+        Query query = messagesRef.orderBy(FirebaseCollectionEnum.createdAt.name(), Query.Direction.DESCENDING)
+                .limit(pageSize);
 
         // Nếu có lastMessageId, startAfter document đó để paging
         if (lastMessageId != null && !lastMessageId.isEmpty()) {
@@ -171,6 +178,19 @@ public class ChatServiceImpl implements ChatService {
         boolean hasMore = snapshot.size() == pageSize;
 
         return new ChatPageResponse(messages, newLastMessageId, hasMore);
+    }
+
+    @Override
+    public String uploadChatImage(ChatImageRequest chatImageRequest) throws IOException {
+        byte[] fileBytes = chatImageRequest.file().getBytes();
+        String fileName = System.currentTimeMillis() + "_" + chatImageRequest.file().getOriginalFilename();
+
+        Map<String, Object> uploadResult = cloudinaryService.uploadFile(fileBytes, fileName, "chat_images");
+
+        String imageUrl = (String) uploadResult.get("secure_url");
+        log.info("Uploaded image URL: {}", imageUrl);
+
+        return imageUrl;
     }
 
     private <T> CompletableFuture<T> convertToCompletableFuture(ApiFuture<T> apiFuture) {

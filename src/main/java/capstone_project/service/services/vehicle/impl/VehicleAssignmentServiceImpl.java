@@ -1,30 +1,25 @@
 package capstone_project.service.services.vehicle.impl;
 
-import capstone_project.common.enums.CommonStatusEnum;
-import capstone_project.common.enums.ErrorEnum;
-import capstone_project.common.enums.OrderStatusEnum;
-import capstone_project.common.enums.VehicleTypeEnum;
+import capstone_project.common.enums.*;
 import capstone_project.common.exceptions.dto.NotFoundException;
-import capstone_project.dtos.request.vehicle.GroupedAssignmentRequest;
-import capstone_project.dtos.request.vehicle.UpdateVehicleAssignmentRequest;
-import capstone_project.dtos.request.vehicle.VehicleAssignmentRequest;
+import capstone_project.dtos.request.vehicle.*;
 import capstone_project.dtos.response.order.ListContractRuleAssignResult;
 import capstone_project.dtos.response.order.contract.ContractRuleAssignResponse;
 import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.vehicle.*;
 import capstone_project.entity.order.contract.ContractEntity;
-import capstone_project.entity.order.order.OrderDetailEntity;
-import capstone_project.entity.order.order.OrderEntity;
-import capstone_project.entity.order.order.OrderSizeEntity;
-import capstone_project.entity.pricing.VehicleRuleEntity;
+import capstone_project.entity.order.order.*;
+import capstone_project.entity.pricing.VehicleTypeRuleEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
+import capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
-import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
+import capstone_project.repository.entityServices.order.order.SealEntityService;
+import capstone_project.repository.entityServices.pricing.VehicleTypeRuleEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
@@ -33,18 +28,18 @@ import capstone_project.repository.repositories.user.PenaltyHistoryRepository;
 import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.mapper.vehicle.VehicleAssignmentMapper;
 import capstone_project.service.mapper.vehicle.VehicleMapper;
-import capstone_project.service.services.order.order.ContractRuleService;
-import capstone_project.service.services.order.order.ContractService;
-import capstone_project.service.services.order.order.OrderDetailService;
-import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.*;
+import capstone_project.service.services.thirdPartyServices.Vietmap.VietmapService;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.vehicle.VehicleAssignmentService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -64,7 +59,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final ContractEntityService contractEntityService;
     private final ContractRuleService contractRuleService;
-    private final VehicleRuleEntityService vehicleRuleEntityService;
+    private final VehicleTypeRuleEntityService vehicleTypeRuleEntityService;
     private final DriverService driverService;
     private final VehicleAssignmentMapper mapper;
     private final VehicleMapper vehicleMapper;
@@ -73,6 +68,11 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final ContractService contractService;
     private final OrderService orderService;
     private final OrderDetailService orderDetailService;
+    private final JourneyHistoryEntityService journeyHistoryEntityService;
+    private final VietmapService vietmapService;
+    private final SealEntityService sealEntityService;
+
+    private final ObjectMapper objectMapper;
 
     @Value("${prefix.vehicle.assignment.code}")
     private String prefixVehicleAssignmentCode;
@@ -215,8 +215,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
-            UUID vehicleRuleId = response.getVehicleRuleId();
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+            UUID vehicleRuleId = response.getVehicleTypeRuleId();
+            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -440,7 +440,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                                         violationCount,         // Số lần vi phạm
                                         completedTrips,         // Số chuyến đã hoàn thành (từ dữ liệu thực)
                                         workExperience,        // Kinh nghiệm (tính từ dateOfPassing)
-                                        lastActiveTime          // Thời gian hoạt động gần nhất
+                                        lastActiveTime          // Thời gian hoạt động gần nh��t
                                 );
                             })
                             .toList();
@@ -605,6 +605,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     /**
      * Lấy danh sách gợi ý xe và tài xế cho order với các order detail được nhóm lại
+     * Sử dụng cả 2 thuật toán: Optimal (BinPacker) và Realistic (First-Fit + Upgrade)
+     * Ưu tiên sử dụng Optimal nếu có, fallback sang Realistic nếu Optimal thất bại
      *
      * @param orderID ID của order
      * @return Danh sách gợi ý với các order detail được nhóm lại thành các chuyến
@@ -625,11 +627,32 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                     ErrorEnum.NO_VEHICLE_AVAILABLE.getErrorCode());
         }
 
-        // Sử dụng trực tiếp phương thức assignVehicles từ ContractService
-        // Phương thức này đã triển khai thuật toán First-Fit Decreasing (FFD) tối ưu
-        List<ContractRuleAssignResponse> vehicleAssignments = contractService.assignVehiclesWithAvailability(orderID);
+        // Sử dụng cả 2 thuật toán giống như endpoint /contracts/{orderId}/get-both-optimal-and-realistic-assign-vehicles
+        List<ContractRuleAssignResponse> optimalAssignments = null;
+        List<ContractRuleAssignResponse> realisticAssignments = null;
 
-        if (vehicleAssignments.isEmpty()) {
+        try {
+            optimalAssignments = contractService.assignVehiclesOptimal(orderID);
+            log.info("[getGroupedSuggestionsForOrder] Optimal assignment succeeded for orderId={}, vehicles used={}",
+                    orderID, optimalAssignments.size());
+        } catch (Exception e) {
+            log.warn("[getGroupedSuggestionsForOrder] Optimal assignment failed for orderId={}, reason={}, fallback to realistic",
+                    orderID, e.getMessage());
+        }
+
+        try {
+            realisticAssignments = contractService.assignVehiclesWithAvailability(orderID);
+            log.info("[getGroupedSuggestionsForOrder] Realistic assignment succeeded for orderId={}, vehicles used={}",
+                    orderID, realisticAssignments.size());
+        } catch (Exception e) {
+            log.warn("[getGroupedSuggestionsForOrder] Realistic assignment failed for orderId={}, reason={}",
+                    orderID, e.getMessage());
+        }
+
+        // Ưu tiên optimal, fallback sang realistic
+        List<ContractRuleAssignResponse> vehicleAssignments = optimalAssignments != null ? optimalAssignments : realisticAssignments;
+
+        if (vehicleAssignments == null || vehicleAssignments.isEmpty()) {
             log.error("Không tìm thấy gợi ý phân bổ xe cho đơn hàng ID={}", orderID);
             throw new NotFoundException(
                     "Không tìm thấy gợi ý phân bổ xe cho đơn hàng này",
@@ -642,7 +665,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                 convertAssignmentsToGroups(vehicleAssignments);
 
         long elapsedMs = (System.nanoTime() - startTime) / 1_000_000;
-        log.info("Completed generating suggestions for order {} in {} ms", orderID, elapsedMs);
+        log.info("Completed generating suggestions for order {} in {} ms using {} algorithm",
+                orderID, elapsedMs, optimalAssignments != null ? "OPTIMAL" : "REALISTIC");
 
         return new GroupedVehicleAssignmentResponse(groups);
     }
@@ -658,8 +682,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
         for (ContractRuleAssignResponse assignment : assignments) {
             // Lấy thông tin về vehicle rule
-            UUID vehicleRuleId = assignment.getVehicleRuleId();
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+            UUID vehicleRuleId = assignment.getVehicleTypeRuleId();
+            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -674,8 +698,9 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             List<GroupedVehicleAssignmentResponse.OrderDetailInfo> detailInfos =
                     getOrderDetailInfos(detailIds);
 
-            List<GroupedVehicleAssignmentResponse.VehicleSuggestionDTO> vehicleSuggestions =
-                    findSuitableVehiclesForGroup(detailIds, vehicleRule);
+            List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions =
+                    findSuitableVehiclesForGroup(detailIds, vehicleRule, vehicleRule.getVehicleTypeEntity() != null
+                            ? vehicleRule.getVehicleTypeEntity().getId() : null);
 
             BigDecimal totalWeight = detailIds.stream()
                     .map(id -> orderDetailEntityService.findEntityById(id).orElse(null))
@@ -692,7 +717,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             } else {
                 groupingReason = String.format(
                         "Các đơn hàng được gộp tối ưu cho xe %s (%.1f/%.1f kg - %.1f%%)",
-                        vehicleRule.getVehicleRuleName(),
+                        vehicleRule.getVehicleTypeRuleName(),
                         totalWeight.doubleValue(),
                         vehicleRule.getMaxWeight().doubleValue(),
                         totalWeight.doubleValue() * 100 / vehicleRule.getMaxWeight().doubleValue()
@@ -716,13 +741,47 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      */
     @Override
     public List<VehicleAssignmentResponse> createGroupedAssignments(GroupedAssignmentRequest request) {
-        log.info("Creating grouped vehicle assignments");
+        log.info("Creating grouped vehicle assignments for {} groups", request.groupAssignments().size());
+        
+        // VALIDATION: Check all groups have required data
+        List<String> validationErrors = new ArrayList<>();
+        
+        for (int i = 0; i < request.groupAssignments().size(); i++) {
+            OrderDetailGroupAssignment groupAssignment = request.groupAssignments().get(i);
+            int groupNumber = i + 1;
+            
+            if (groupAssignment.orderDetailIds() == null || groupAssignment.orderDetailIds().isEmpty()) {
+                validationErrors.add("Group " + groupNumber + ": Missing order details");
+            }
+            if (groupAssignment.vehicleId() == null) {
+                validationErrors.add("Group " + groupNumber + ": Missing vehicle");
+            }
+            if (groupAssignment.driverId_1() == null) {
+                validationErrors.add("Group " + groupNumber + ": Missing driver 1");
+            }
+            if (groupAssignment.driverId_2() == null) {
+                validationErrors.add("Group " + groupNumber + ": Missing driver 2");
+            }
+            if (groupAssignment.routeInfo() == null || groupAssignment.routeInfo().segments() == null || groupAssignment.routeInfo().segments().isEmpty()) {
+                validationErrors.add("Group " + groupNumber + ": Missing route information");
+            }
+            if (groupAssignment.seals() == null || groupAssignment.seals().isEmpty()) {
+                validationErrors.add("Group " + groupNumber + ": Missing seals (at least 1 seal required)");
+            }
+        }
+        
+        if (!validationErrors.isEmpty()) {
+            String errorMessage = "Cannot create vehicle assignments. Validation errors: " + String.join("; ", validationErrors);
+            log.error(errorMessage);
+            throw new NotFoundException(errorMessage, ErrorEnum.INVALID_REQUEST.getErrorCode());
+        }
+        
         List<VehicleAssignmentResponse> createdAssignments = new ArrayList<>();
         // Keep track of orders that need status update
         Set<UUID> orderIdsToUpdate = new HashSet<>();
 
         // Xử lý từng nhóm order detail
-        for (GroupedAssignmentRequest.OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
+        for (OrderDetailGroupAssignment groupAssignment : request.groupAssignments()) {
             // Kiểm tra các order detail có tồn tại không
             List<UUID> orderDetailIds = groupAssignment.orderDetailIds();
             if (orderDetailIds.isEmpty()) {
@@ -789,6 +848,31 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             // Lưu assignment
             VehicleAssignmentEntity savedAssignment = entityService.save(assignment);
 
+            try {
+                createInitialJourneyForAssignment(savedAssignment, orderDetailIds, groupAssignment.routeInfo());
+            } catch (Exception e) {
+                log.error("Failed to create journey history for assignment {}: {}", savedAssignment.getId(), e.getMessage());
+                // continue without failing whole operation
+            }
+
+            // Tạo seal mới nếu có thông tin seal
+            if (groupAssignment.seals() != null && !groupAssignment.seals().isEmpty()) {
+                try {
+                    // Tạo nhiều seal cho assignment
+                    for (capstone_project.dtos.request.seal.SealInfo sealInfo : groupAssignment.seals()) {
+                        // Validate seal data
+                        if (sealInfo.sealCode() == null || sealInfo.sealCode().trim().isEmpty()) {
+                            log.warn("Skipping seal with empty code for assignment {}", savedAssignment.getId());
+                            continue;
+                        }
+                        createSealForAssignment(savedAssignment, sealInfo.sealCode(), sealInfo.description());
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to create seals for assignment {}: {}", savedAssignment.getId(), e.getMessage(), e);
+                    // continue without failing the operation
+                }
+            }
+
             // Gán order details vào assignment
             for (UUID orderDetailId : orderDetailIds) {
                 var orderDetail = orderDetailEntityService.findEntityById(orderDetailId)
@@ -822,6 +906,250 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         return createdAssignments;
     }
 
+    private void createInitialJourneyForAssignment(VehicleAssignmentEntity assignment, List<UUID> orderDetailIds, RouteInfo routeInfo) {
+        // If there's route information from the client, use that to create the journey
+        if (routeInfo != null && routeInfo.segments() != null && !routeInfo.segments().isEmpty()) {
+            log.info("Creating journey history with route information for assignment {}", assignment.getId());
+            // Log toll information received from client
+            log.info("Route info toll data: totalTollFee={}, totalTollCount={}, segments={}",
+                routeInfo.totalTollFee(),
+                routeInfo.totalTollCount(),
+                routeInfo.segments().size());
+            
+            // Consolidate route segments to standard 3-segment format while preserving intermediate points
+            List<RouteSegmentInfo> consolidatedSegments = consolidateRouteSegments(routeInfo.segments());
+            log.info("Consolidated {} original segments into {} standard segments",
+                    routeInfo.segments().size(), consolidatedSegments.size());
+
+            // Create a new RouteInfo with consolidated segments
+            RouteInfo consolidatedRouteInfo = new RouteInfo(
+                consolidatedSegments,
+                routeInfo.totalTollFee(),
+                routeInfo.totalTollCount(),
+                routeInfo.totalDistance()
+            );
+
+            // Build journey history
+            capstone_project.entity.order.order.JourneyHistoryEntity journeyHistory =
+                    new capstone_project.entity.order.order.JourneyHistoryEntity();
+            journeyHistory.setJourneyName("Journey for " + assignment.getTrackingCode());
+            journeyHistory.setJourneyType("INITIAL");
+            journeyHistory.setStatus(CommonStatusEnum.ACTIVE.name());
+            journeyHistory.setVehicleAssignment(assignment);
+
+            // Set total toll fee (BigDecimal -> Long)
+            Long totalTollFeeLong = null;
+            if (consolidatedRouteInfo.totalTollFee() != null) {
+                totalTollFeeLong = consolidatedRouteInfo.totalTollFee().setScale(0, RoundingMode.HALF_UP).longValue();
+                log.info("Setting journey total toll fee: {}", totalTollFeeLong);
+            } else {
+                log.warn("Total toll fee is missing in the route info for assignment {}", assignment.getId());
+                // Calculate total from segments as fallback
+                BigDecimal calculatedTotal = BigDecimal.ZERO;
+                boolean hasSegmentTolls = false;
+                
+                if (consolidatedRouteInfo.segments() != null) {
+                    for (RouteSegmentInfo segmentInfo : consolidatedRouteInfo.segments()) {
+                        if (segmentInfo.estimatedTollFee() != null) {
+                            calculatedTotal = calculatedTotal.add(segmentInfo.estimatedTollFee());
+                            hasSegmentTolls = true;
+                        }
+                    }
+                }
+                
+                if (hasSegmentTolls) {
+                    totalTollFeeLong = calculatedTotal.setScale(0, RoundingMode.HALF_UP).longValue();
+                    log.info("Calculated total toll fee from segments: {}", totalTollFeeLong);
+                }
+            }
+            journeyHistory.setTotalTollFee(totalTollFeeLong);
+
+            // Set total toll count
+            Integer totalTollCount = consolidatedRouteInfo.totalTollCount();
+            if (totalTollCount == null) {
+                // Calculate total toll count from segments if not provided
+                totalTollCount = 0;
+                for (RouteSegmentInfo segmentInfo : consolidatedRouteInfo.segments()) {
+                    if (segmentInfo.tollDetails() != null) {
+                        totalTollCount += segmentInfo.tollDetails().size();
+                    }
+                }
+                log.info("Calculated total toll count from segments: {}", totalTollCount);
+            }
+            journeyHistory.setTotalTollCount(totalTollCount);
+
+            // Create journey segments from route info
+            List<capstone_project.entity.order.order.JourneySegmentEntity> segments = new ArrayList<>();
+
+            for (RouteSegmentInfo segmentInfo : consolidatedRouteInfo.segments()) {
+                capstone_project.entity.order.order.JourneySegmentEntity segment =
+                        new capstone_project.entity.order.order.JourneySegmentEntity();
+
+                segment.setSegmentOrder(segmentInfo.segmentOrder());
+                segment.setStartPointName(segmentInfo.startPointName());
+                segment.setEndPointName(segmentInfo.endPointName());
+                segment.setStartLatitude(segmentInfo.startLatitude());
+                segment.setStartLongitude(segmentInfo.startLongitude());
+                segment.setEndLatitude(segmentInfo.endLatitude());
+                segment.setEndLongitude(segmentInfo.endLongitude());
+
+                // Convert BigDecimal -> Integer (rounding)
+                segment.setDistanceMeters(segmentInfo.distanceMeters() != null
+                        ? segmentInfo.distanceMeters().setScale(0, RoundingMode.HALF_UP).intValue()
+                        : null);
+
+                // Convert BigDecimal -> Long (rounding)
+                Long segmentTollFee = null;
+                if (segmentInfo.estimatedTollFee() != null) {
+                    segmentTollFee = segmentInfo.estimatedTollFee().setScale(0, RoundingMode.HALF_UP).longValue();
+                    log.info("Setting segment [{}] toll fee: {}", segmentInfo.segmentOrder(), segmentTollFee);
+                } else {
+                    log.warn("Segment [{}] is missing toll fee information", segmentInfo.segmentOrder());
+                }
+                segment.setEstimatedTollFee(segmentTollFee);
+                segment.setStatus("PENDING");
+
+                // Store path coordinates as JSON
+                if (segmentInfo.pathCoordinates() != null && !segmentInfo.pathCoordinates().isEmpty()) {
+                    try {
+                        segment.setPathCoordinatesJson(objectMapper.writeValueAsString(segmentInfo.pathCoordinates()));
+                    } catch (Exception e) {
+                        log.warn("Failed to serialize path coordinates for segment {}: {}",
+                            segmentInfo.segmentOrder(), e.getMessage());
+                    }
+                }
+
+                // Store toll details as JSON
+                if (segmentInfo.tollDetails() != null && !segmentInfo.tollDetails().isEmpty()) {
+                    try {
+                        segment.setTollDetailsJson(objectMapper.writeValueAsString(segmentInfo.tollDetails()));
+                        log.info("Stored toll details JSON for segment [{}] with {} toll points",
+                            segmentInfo.segmentOrder(), segmentInfo.tollDetails().size());
+                    } catch (Exception e) {
+                        log.warn("Failed to serialize toll details for segment {}: {}",
+                            segmentInfo.segmentOrder(), e.getMessage());
+                    }
+                }
+
+                segment.setJourneyHistory(journeyHistory);
+                segments.add(segment);
+            }
+
+            journeyHistory.setJourneySegments(segments);
+
+            // Save journey history with all segments
+            journeyHistory = journeyHistoryEntityService.save(journeyHistory);
+
+            log.info("Created journey history {} with {} segments for assignment {}, totalTollFee={}, totalTollCount={}",
+                    journeyHistory.getId(), segments.size(), assignment.getId(),
+                    journeyHistory.getTotalTollFee(), journeyHistory.getTotalTollCount());
+
+            return;
+        }
+
+        // Fallback to the existing method if no route information is provided
+        // Determine depot/unit coordinates - fallback to vehicle current position if configured
+        BigDecimal unitLat = null;
+        BigDecimal unitLng = null;
+        VehicleEntity vehicle = assignment.getVehicleEntity();
+        if (vehicle != null) {
+            try {
+                // adjust method names if your VehicleEntity uses different getters
+                unitLat = vehicle.getCurrentLatitude();
+                unitLng = vehicle.getCurrentLongitude();
+            } catch (Exception ignored) {}
+        }
+
+        // Use first orderDetail's order addresses as representative pickup/delivery
+        BigDecimal pickupLat = null;
+        BigDecimal pickupLng = null;
+        BigDecimal deliveryLat = null;
+        BigDecimal deliveryLng = null;
+
+        if (!orderDetailIds.isEmpty()) {
+            OrderDetailEntity od = orderDetailEntityService.findEntityById(orderDetailIds.get(0)).orElse(null);
+            if (od != null && od.getOrderEntity() != null) {
+                OrderEntity order = od.getOrderEntity();
+                AddressEntity pickupAddr = order.getPickupAddress();
+                AddressEntity deliveryAddr = order.getDeliveryAddress();
+                if (pickupAddr != null) {
+                    // adjust getters if your AddressEntity uses different names / types
+                    pickupLat = pickupAddr.getLatitude();
+                    pickupLng = pickupAddr.getLongitude();
+                }
+                if (deliveryAddr != null) {
+                    deliveryLat = deliveryAddr.getLatitude();
+                    deliveryLng = deliveryAddr.getLongitude();
+                }
+            }
+        }
+
+        // fallback unit -> pickup/delivery if unit missing
+        if ((unitLat == null || unitLng == null) && pickupLat != null && pickupLng != null) {
+            unitLat = pickupLat; unitLng = pickupLng;
+        } else if ((unitLat == null || unitLng == null) && deliveryLat != null && deliveryLng != null) {
+            unitLat = deliveryLat; unitLng = deliveryLng;
+        }
+
+        // if any coordinate missing -> skip
+        if (unitLat == null || unitLng == null || pickupLat == null || pickupLng == null || deliveryLat == null || deliveryLng == null) {
+            log.warn("Missing coords for creating journey for assignment {}. unit:({},{}) pickup:({},{}) delivery:({},{})",
+                    assignment.getId(), unitLat, unitLng, pickupLat, pickupLng, deliveryLat, deliveryLng);
+            return;
+        }
+
+        // Build journey history
+        capstone_project.entity.order.order.JourneyHistoryEntity journeyHistory = new capstone_project.entity.order.order.JourneyHistoryEntity();
+        journeyHistory.setJourneyName("Journey for " + assignment.getTrackingCode());
+        journeyHistory.setJourneyType("INITIAL");
+        journeyHistory.setStatus(CommonStatusEnum.ACTIVE.name());
+        journeyHistory.setVehicleAssignment(assignment);
+
+        // Segment 1: unit -> pickup
+        capstone_project.entity.order.order.JourneySegmentEntity s1 = new capstone_project.entity.order.order.JourneySegmentEntity();
+        s1.setSegmentOrder(1);
+        s1.setStartPointName("Unit");
+        s1.setEndPointName("Pickup");
+        s1.setStartLatitude(unitLat);
+        s1.setStartLongitude(unitLng);
+        s1.setEndLatitude(pickupLat);
+        s1.setEndLongitude(pickupLng);
+        s1.setStatus("PENDING");
+
+        // Segment 2: pickup -> delivery
+        capstone_project.entity.order.order.JourneySegmentEntity s2 = new capstone_project.entity.order.order.JourneySegmentEntity();
+        s2.setSegmentOrder(2);
+        s2.setStartPointName("Pickup");
+        s2.setEndPointName("Delivery");
+        s2.setStartLatitude(pickupLat);
+        s2.setStartLongitude(pickupLng);
+        s2.setEndLatitude(deliveryLat);
+        s2.setEndLongitude(deliveryLng);
+        s2.setStatus("PENDING");
+
+        // Save segments
+        List<capstone_project.entity.order.order.JourneySegmentEntity> segments = Arrays.asList(s1, s2);
+        journeyHistory.setJourneySegments(segments);
+
+        // Assign segments to journey history
+        s1.setJourneyHistory(journeyHistory);
+        s2.setJourneyHistory(journeyHistory);
+
+        // Save journey history
+        journeyHistoryEntityService.save(journeyHistory);
+    }
+
+    private void createInitialJourneyForAssignment(VehicleAssignmentEntity assignment, List<UUID> orderDetailIds) {
+        // Call the overloaded method with null route info to use the default behavior
+        createInitialJourneyForAssignment(assignment, orderDetailIds, null);
+    }
+
+    private String generateCode(String prefix) {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+        return prefix + timestamp + "-" + randomPart;
+    }
+
     /**
      * Lấy thông tin chi tiết về các order detail
      * @param detailIds Danh sách ID của order details
@@ -837,49 +1165,18 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
 
-            // Lấy thông tin địa chỉ từ order
-            String originAddress = "";
-            String destinationAddress = "";
-            double weight = 0;
-            double volume = 0;
-
-            if (orderDetail.getOrderEntity() != null) {
-                OrderEntity order = orderDetail.getOrderEntity();
-
-                // Xử lý địa chỉ đón hàng
-                if (order.getPickupAddress() != null) {
-                    AddressEntity pickupAddr = order.getPickupAddress();
-                    originAddress = combineAddress(pickupAddr.getStreet(), pickupAddr.getWard(), pickupAddr.getProvince());
-                }
-
-                // Xử lý địa chỉ giao hàng
-                if (order.getDeliveryAddress() != null) {
-                    AddressEntity deliveryAddr = order.getDeliveryAddress();
-                    destinationAddress = combineAddress(deliveryAddr.getStreet(), deliveryAddr.getWard(), deliveryAddr.getProvince());
-                }
-            }
-
-            // Lấy khối lượng từ orderDetail
-            if (orderDetail.getWeight() != null) {
-                weight = orderDetail.getWeight().doubleValue();
-            }
-
-            // Tính thể tích từ orderSize nếu có
-            if (orderDetail.getOrderSizeEntity() != null) {
-                OrderSizeEntity size = orderDetail.getOrderSizeEntity();
-                // Tính thể tích nếu có đủ thông tin
-                if (size.getMaxLength() != null && size.getMaxWidth() != null && size.getMaxHeight() != null) {
-                    volume = size.getMaxLength().doubleValue() * size.getMaxWidth().doubleValue() * size.getMaxHeight().doubleValue() / 1000000; // chuyển đổi sang m³
-                }
+            // Lấy weightBaseUnit từ orderDetail
+            Double weightBaseUnit = null;
+            if (orderDetail.getWeightBaseUnit() != null) {
+                weightBaseUnit = orderDetail.getWeightBaseUnit().doubleValue();
             }
 
             detailInfos.add(new GroupedVehicleAssignmentResponse.OrderDetailInfo(
                     orderDetail.getId(),
                     orderDetail.getTrackingCode(),
-                    originAddress,
-                    destinationAddress,
-                    weight,
-                    volume
+                    weightBaseUnit,
+                    orderDetail.getUnit(),
+                    orderDetail.getDescription()
             ));
         }
 
@@ -915,10 +1212,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
      * @param vehicleRule Quy tắc về loại xe
      * @return Danh sách gợi ý xe và tài xế phù hợp cho nhóm
      */
-    private List<GroupedVehicleAssignmentResponse.VehicleSuggestionDTO> findSuitableVehiclesForGroup(
-            List<UUID> detailIds, VehicleRuleEntity vehicleRule) {
+    private List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> findSuitableVehiclesForGroup(
+            List<UUID> detailIds, VehicleTypeRuleEntity vehicleRule, UUID vehicleTypeId) {
 
-        List<GroupedVehicleAssignmentResponse.VehicleSuggestionDTO> vehicleSuggestions = new ArrayList<>();
+        List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions = new ArrayList<>();
 
         // Lấy danh sách xe phù hợp với loại xe từ rule
         VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(vehicleRule.getVehicleTypeEntity().getVehicleTypeName());
@@ -958,17 +1255,27 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             List<DriverEntity> preferredDrivers = findPreferredDriversForVehicle(vehicle, allEligibleDrivers, vehicleTypeEnum);
 
             if (!preferredDrivers.isEmpty()) {
-                List<GroupedVehicleAssignmentResponse.DriverSuggestionDTO> driverSuggestions =
+                List<GroupedVehicleAssignmentResponse.DriverSuggestionResponse> driverSuggestions =
                         createDriverSuggestions(preferredDrivers);
 
                 // Đánh dấu xe được đề xuất nhất (xe đầu tiên trong danh sách)
                 boolean isRecommended = (vehicleCount == 0);
 
-                vehicleSuggestions.add(new GroupedVehicleAssignmentResponse.VehicleSuggestionDTO(
+                UUID finalVehicleTypeId = vehicle.getVehicleTypeEntity() != null
+                        ? vehicle.getVehicleTypeEntity().getId()
+                        : vehicleTypeId;
+
+                String vehicleTypeName = vehicle.getVehicleTypeEntity() != null
+                        ? vehicle.getVehicleTypeEntity().getVehicleTypeName()
+                        : vehicleRule.getVehicleTypeEntity().getVehicleTypeName();
+
+                vehicleSuggestions.add(new GroupedVehicleAssignmentResponse.VehicleSuggestionResponse(
                         vehicle.getId(),
                         vehicle.getLicensePlateNumber(),
                         vehicle.getModel(),
                         vehicle.getManufacturer(),
+                        finalVehicleTypeId,
+                        vehicleTypeName,
                         driverSuggestions,
                         isRecommended
                 ));
@@ -982,6 +1289,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     /**
      * Find preferred drivers for a specific vehicle
+     * Enhanced to consider recent activity and workload when selecting drivers
      */
     private List<DriverEntity> findPreferredDriversForVehicle(
             VehicleEntity vehicle, List<DriverEntity> allEligibleDrivers, VehicleTypeEnum vehicleTypeEnum) {
@@ -989,30 +1297,118 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         List<DriverEntity> preferredDrivers = new ArrayList<>();
         final int MAX_DRIVERS_PER_VEHICLE = 4;
 
-        // Ưu tiên tài xế từ assignment gần đây nhất nếu có
+        // Collect last assignment drivers for this vehicle (preserve ordering)
         List<VehicleAssignmentEntity> pastAssignments = entityService.findAssignmentsByVehicleOrderByCreatedAtDesc(vehicle);
-
+        List<UUID> lastAssignmentDriverOrder = new ArrayList<>();
         if (!pastAssignments.isEmpty()) {
             VehicleAssignmentEntity lastAssignment = pastAssignments.get(0);
-            DriverEntity driver1 = lastAssignment.getDriver1();
-            DriverEntity driver2 = lastAssignment.getDriver2();
+            if (lastAssignment.getDriver1() != null) lastAssignmentDriverOrder.add(lastAssignment.getDriver1().getId());
+            if (lastAssignment.getDriver2() != null) lastAssignmentDriverOrder.add(lastAssignment.getDriver2().getId());
+        }
 
-            if (driver1 != null && CommonStatusEnum.ACTIVE.name().equals(driver1.getStatus()) &&
-                    driverService.isCheckClassDriverLicenseForVehicleType(driver1, vehicleTypeEnum) &&
-                    !entityService.existsActiveAssignmentForDriver(driver1.getId())) {
-                preferredDrivers.add(driver1);
+        // Get all driver IDs to calculate metrics
+        Set<UUID> driverIds = allEligibleDrivers.stream().map(DriverEntity::getId).collect(Collectors.toSet());
+
+        // Use our improved activity scoring system - weighted by recency
+        Map<UUID, Integer> recentActivityMap = countRecentActivitiesByDrivers(driverIds, 30);
+
+        // Count completed trips for each driver
+        Map<UUID, Integer> completedTripsMap = countCompletedTripsByDrivers(driverIds);
+
+        // Get the average number of completed trips across all drivers
+        double avgCompletedTrips = completedTripsMap.values().stream()
+                .mapToInt(Integer::intValue)
+                .average()
+                .orElse(0);
+
+        // Get violation counts for all drivers
+        Map<UUID, Integer> violationCountMap = new HashMap<>();
+        for (DriverEntity driver : allEligibleDrivers) {
+            violationCountMap.put(driver.getId(), penaltyHistoryRepository.findByDriverId(driver.getId()).size());
+        }
+
+        // Build a comprehensive scoring system for each driver
+        Map<DriverEntity, Integer> driverScoreMap = new HashMap<>();
+        for (DriverEntity driver : allEligibleDrivers) {
+            int score = 0;
+            UUID driverId = driver.getId();
+
+            // Factor 1: License class rank (0-200 points)
+            score += licenseClassRank(driver.getLicenseClass()) * 100;
+
+            // Factor 2: Previous assignment to this vehicle - familiarity bonus (0-500 points)
+            int previousAssignmentScore = lastAssignmentDriverOrder.indexOf(driverId);
+            score += (previousAssignmentScore >= 0) ? previousAssignmentScore * 50 : 500;
+
+            // Factor 3: Recent activity (weighted by our improved scoring system) (0-300 points)
+            int recentActivity = recentActivityMap.getOrDefault(driverId, 0);
+            score += recentActivity * 30;
+
+            // Factor 4: Experience vs workload balance (100-300 points)
+            int completedTrips = completedTripsMap.getOrDefault(driverId, 0);
+
+            // Prefer drivers with experience but don't overwork them
+            if (completedTrips < avgCompletedTrips * 0.5) {
+                // Less experienced driver gets medium priority
+                score += 200;
+            } else if (completedTrips > avgCompletedTrips * 1.5) {
+                // Overworked driver gets lower priority
+                score += 300;
+            } else {
+                // Balanced workload gets highest priority
+                score += 100;
             }
 
-            if (driver2 != null && CommonStatusEnum.ACTIVE.name().equals(driver2.getStatus()) &&
-                    driverService.isCheckClassDriverLicenseForVehicleType(driver2, vehicleTypeEnum) &&
-                    !entityService.existsActiveAssignmentForDriver(driver2.getId()) &&
-                    !preferredDrivers.contains(driver2)) {
-                preferredDrivers.add(driver2);
+            // Factor 5: Violations (0-400 points)
+            int violations = violationCountMap.getOrDefault(driverId, 0);
+            score += violations * 80;
+
+            // Factor 6: Driver workload balance over time (0-300 points)
+            // Calculate days since last assignment to prevent overworking recent drivers
+            Optional<VehicleAssignmentEntity> lastAssignment = entityService.findLatestAssignmentByDriverId(driverId);
+            if (lastAssignment.isPresent()) {
+                LocalDateTime lastAssignmentDate = lastAssignment.get().getCreatedAt();
+                long daysSinceLastAssignment = java.time.Duration.between(
+                        lastAssignmentDate,
+                        LocalDateTime.now()
+                ).toDays();
+
+                // Drivers who haven't been assigned recently get priority
+                if (daysSinceLastAssignment < 2) {
+                    // Assigned very recently (less than 2 days ago)
+                    score += 300;
+                } else if (daysSinceLastAssignment < 5) {
+                    // Assigned recently (2-5 days ago)
+                    score += 200;
+                } else if (daysSinceLastAssignment < 14) {
+                    // Assigned not too recently (5-14 days ago)
+                    score += 100;
+                } else {
+                    // Hasn't been assigned in a while (14+ days)
+                    score += 0; // Highest priority - no penalty
+                }
+            }
+
+            // Store the comprehensive score
+            driverScoreMap.put(driver, score);
+        }
+
+        // Sort drivers by their comprehensive score (lower is better)
+        List<DriverEntity> sortedCandidates = new ArrayList<>(allEligibleDrivers);
+        sortedCandidates.sort(Comparator.comparingInt(d -> driverScoreMap.getOrDefault(d, Integer.MAX_VALUE)));
+
+        // Log the top 5 driver scores for debugging if needed
+        if (!sortedCandidates.isEmpty()) {
+            int logLimit = Math.min(sortedCandidates.size(), 5);
+            for (int i = 0; i < logLimit; i++) {
+                DriverEntity driver = sortedCandidates.get(i);
+                log.debug("Driver score {} for {}: {}", i+1, driver.getUser().getFullName(),
+                        driverScoreMap.getOrDefault(driver, -1));
             }
         }
 
-        // Thêm tài xế khác từ danh sách tài xế hợp lệ
-        for (DriverEntity driver : allEligibleDrivers) {
+        // Select up to MAX_DRIVERS_PER_VEHICLE distinct drivers from sortedCandidates
+        for (DriverEntity driver : sortedCandidates) {
             if (preferredDrivers.size() >= MAX_DRIVERS_PER_VEHICLE) break;
             if (!preferredDrivers.contains(driver)) {
                 preferredDrivers.add(driver);
@@ -1022,10 +1418,19 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         return preferredDrivers;
     }
 
+    private int licenseClassRank(String licenseClass) {
+        if (licenseClass == null) return Integer.MAX_VALUE;
+        return switch (licenseClass.trim().toUpperCase()) {
+            case "B2" -> 0;
+            case "C" -> 1;
+            default -> 100;
+        };
+    }
+
     /**
      * Create driver suggestion DTOs from driver entities
      */
-    private List<GroupedVehicleAssignmentResponse.DriverSuggestionDTO> createDriverSuggestions(List<DriverEntity> drivers) {
+    private List<GroupedVehicleAssignmentResponse.DriverSuggestionResponse> createDriverSuggestions(List<DriverEntity> drivers) {
         // Thu thập tất cả driver ID để tính số chuyến đã hoàn thành
         Set<UUID> driverIds = drivers.stream().map(DriverEntity::getId).collect(Collectors.toSet());
 
@@ -1054,7 +1459,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             // Tính thời gian làm việc dựa trên ngày tạo hồ sơ của tài xế
             String workExperience = calculateWorkExperience(driver);
 
-            return new GroupedVehicleAssignmentResponse.DriverSuggestionDTO(
+            return new GroupedVehicleAssignmentResponse.DriverSuggestionResponse(
                     driver.getId(),
                     driver.getUser().getFullName(),
                     driver.getDriverLicenseNumber(),
@@ -1084,8 +1489,8 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
                 // Điều chỉnh nếu chưa đến ngày kỷ niệm hàng năm
                 if (today.getMonthValue() < joinDate.getMonthValue() ||
-                    (today.getMonthValue() == joinDate.getMonthValue() &&
-                     today.getDayOfMonth() < joinDate.getDayOfMonth())) {
+                        (today.getMonthValue() == joinDate.getMonthValue() &&
+                                today.getDayOfMonth() < joinDate.getDayOfMonth())) {
                     yearsOfWork--;
                 }
 
@@ -1109,9 +1514,285 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         return workExperience;
     }
 
-    private String generateCode(String prefix) {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        String randomPart = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
-        return prefix + timestamp + "-" + randomPart;
+    /**
+     * Tạo seal mới cho vehicle assignment
+     * @param assignment Vehicle assignment entity
+     * @param sealCode Mã seal
+     * @param sealDescription Mô tả seal
+     */
+    private void createSealForAssignment(VehicleAssignmentEntity assignment, String sealCode, String sealDescription) {
+        log.info("Creating seal for vehicle assignment {}: sealCode={}", assignment.getId(), sealCode);
+
+        // FIXED: Seal code không cần unique toàn hệ thống
+        // Chỉ cần unique trong cùng 1 vehicle assignment
+        // Cho phép tái sử dụng seal code cho các vehicle assignment khác nhau
+        
+        String finalSealCode = sealCode;
+
+        // Improve description null check to also handle empty strings and whitespace
+        String finalDescription = sealDescription;
+        if (finalDescription == null || finalDescription.trim().isEmpty()) {
+            finalDescription = "Seal for " + assignment.getTrackingCode();
+        }
+
+        SealEntity seals = SealEntity.builder()
+                .sealCode(finalSealCode)
+                .description(finalDescription)
+                .status(SealEnum.ACTIVE.name())
+                .vehicleAssignment(assignment)
+                .build();
+
+        SealEntity savedSeal = sealEntityService.save(seals);
+        log.info("Created order seal with ID: {} and code: {}, linked to vehicle assignment: {}",
+                savedSeal.getId(), savedSeal.getSealCode(), assignment.getId());
+    }
+
+    /**
+     * Consolidates route segments into the standard 3-segment format (carrier→pickup, pickup→delivery, delivery→carrier)
+     * while preserving all intermediate points in the path coordinates.
+     *
+     * @param originalSegments The original list of route segments from the client
+     * @return A consolidated list with exactly 3 segments that includes all the intermediate points
+     */
+    private List<RouteSegmentInfo> consolidateRouteSegments(List<RouteSegmentInfo> originalSegments) {
+        if (originalSegments == null || originalSegments.isEmpty()) {
+            return originalSegments;
+        }
+
+        log.info("Consolidating {} route segments into standard 3-segment format", originalSegments.size());
+
+        // Sort segments by point names to ensure proper sequence (Carrier→Pickup→Delivery→Carrier)
+        List<RouteSegmentInfo> sortedSegments = new ArrayList<>(originalSegments);
+        sortedSegments.sort((s1, s2) -> {
+            // Define the order of transitions
+            String[] pointOrder = {"Carrier", "Pickup", "Delivery", "Carrier"};
+            
+            // Find position of s1's end point
+            int s1EndPos = -1;
+            for (int i = 0; i < pointOrder.length - 1; i++) {
+                if (pointOrder[i].equals(s1.startPointName()) && pointOrder[i + 1].equals(s1.endPointName())) {
+                    s1EndPos = i;
+                    break;
+                }
+            }
+            
+            // Find position of s2's end point
+            int s2EndPos = -1;
+            for (int i = 0; i < pointOrder.length - 1; i++) {
+                if (pointOrder[i].equals(s2.startPointName()) && pointOrder[i + 1].equals(s2.endPointName())) {
+                    s2EndPos = i;
+                    break;
+                }
+            }
+            
+            // If we can't determine position by point names, use segmentOrder as fallback
+            if (s1EndPos == -1 || s2EndPos == -1) {
+                return Integer.compare(s1.segmentOrder() != null ? s1.segmentOrder() : 0,
+                                      s2.segmentOrder() != null ? s2.segmentOrder() : 0);
+            }
+            
+            return Integer.compare(s1EndPos, s2EndPos);
+        });
+
+        log.info("Sorted segments: {}", sortedSegments.stream()
+            .map(s -> s.startPointName() + "->" + s.endPointName())
+            .toList());
+
+        // Identify key segments by their point names
+        String carrierPointName = "Carrier";
+        String pickupPointName = "Pickup";
+        String deliveryPointName = "Delivery";
+
+        // Find the indices of key segments or transitions
+        int firstPickupIndex = -1;
+        int firstDeliveryIndex = -1;
+        int lastDeliveryIndex = -1;
+
+        for (int i = 0; i < sortedSegments.size(); i++) {
+            RouteSegmentInfo segment = sortedSegments.get(i);
+
+            // Find first segment that ends at Pickup
+            if (firstPickupIndex == -1 && pickupPointName.equals(segment.endPointName())) {
+                firstPickupIndex = i;
+            }
+
+            // Find first segment that ends at Delivery
+            if (firstDeliveryIndex == -1 && deliveryPointName.equals(segment.endPointName())) {
+                firstDeliveryIndex = i;
+            }
+
+            // Keep track of last segment that starts from Delivery
+            if (deliveryPointName.equals(segment.startPointName())) {
+                lastDeliveryIndex = i;
+            }
+        }
+
+        // Validate that we found all key transitions
+        if (firstPickupIndex == -1 || firstDeliveryIndex == -1 || lastDeliveryIndex == -1) {
+            log.warn("Could not identify all key segments in the route. firstPickupIndex={}, firstDeliveryIndex={}, lastDeliveryIndex={}",
+                firstPickupIndex, firstDeliveryIndex, lastDeliveryIndex);
+            return originalSegments;
+        }
+
+        // Create consolidated segments
+        List<RouteSegmentInfo> consolidatedSegments = new ArrayList<>(3);
+
+        // 1. Carrier → Pickup (with all intermediate points)
+        consolidatedSegments.add(createConsolidatedSegment(
+            sortedSegments.subList(0, firstPickupIndex + 1),
+            1,
+            carrierPointName,
+            pickupPointName
+        ));
+
+        // 2. Pickup → Delivery (with all intermediate points)
+        consolidatedSegments.add(createConsolidatedSegment(
+            sortedSegments.subList(firstPickupIndex + 1, firstDeliveryIndex + 1),
+            2,
+            pickupPointName,
+            deliveryPointName
+        ));
+
+        // 3. Delivery → Carrier (with all intermediate points)
+        consolidatedSegments.add(createConsolidatedSegment(
+            sortedSegments.subList(lastDeliveryIndex, sortedSegments.size()),
+            3,
+            deliveryPointName,
+            carrierPointName
+        ));
+
+        log.info("Successfully consolidated segments into {} standard segments", consolidatedSegments.size());
+        return consolidatedSegments;
+    }
+
+    /**
+     * Creates a consolidated segment from multiple segments while preserving path coordinates
+     *
+     * @param segments Segments to consolidate
+     * @param segmentOrder New segment order
+     * @param startPointName Name of the start point
+     * @param endPointName Name of the end point
+     * @return Consolidated segment
+     */
+    private RouteSegmentInfo createConsolidatedSegment(
+            List<RouteSegmentInfo> segments,
+            int segmentOrder,
+            String startPointName,
+            String endPointName) {
+
+        if (segments.isEmpty()) {
+            throw new IllegalArgumentException("Cannot create consolidated segment from empty list");
+        }
+
+        // Use first segment for start coordinates and last segment for end coordinates
+        RouteSegmentInfo firstSegment = segments.get(0);
+        RouteSegmentInfo lastSegment = segments.get(segments.size() - 1);
+
+        // Combine path coordinates from all segments
+        List<List<BigDecimal>> combinedPath = new ArrayList<>();
+        BigDecimal totalDistance = BigDecimal.ZERO;
+        BigDecimal totalTollFee = BigDecimal.ZERO;
+        List<TollDetail> combinedTollDetails = new ArrayList<>();
+
+        for (int i = 0; i < segments.size(); i++) {
+            RouteSegmentInfo segment = segments.get(i);
+
+            // Add distance
+            if (segment.distanceMeters() != null) {
+                totalDistance = totalDistance.add(segment.distanceMeters());
+            }
+
+            // Add toll fee
+            if (segment.estimatedTollFee() != null) {
+                totalTollFee = totalTollFee.add(segment.estimatedTollFee());
+            }
+
+            // Combine toll details
+            if (segment.tollDetails() != null) {
+                combinedTollDetails.addAll(segment.tollDetails());
+            }
+
+            // Combine path coordinates, avoiding duplicate points at segment transitions
+            if (segment.pathCoordinates() != null && !segment.pathCoordinates().isEmpty()) {
+                if (combinedPath.isEmpty()) {
+                    // First segment - add all points
+                    combinedPath.addAll(segment.pathCoordinates());
+                } else {
+                    // Skip the first point of subsequent segments to avoid duplication
+                    combinedPath.addAll(segment.pathCoordinates().subList(1, segment.pathCoordinates().size()));
+                }
+            }
+        }
+
+        // Create new consolidated segment
+        return new RouteSegmentInfo(
+            segmentOrder,
+            startPointName,
+            endPointName,
+            firstSegment.startLatitude(),
+            firstSegment.startLongitude(),
+            lastSegment.endLatitude(),
+            lastSegment.endLongitude(),
+            totalDistance,
+            combinedPath,
+            totalTollFee,
+            combinedTollDetails,
+            null // rawResponse isn't needed for consolidated segment
+        );
+    }
+
+    /**
+     * Count recent activities for drivers within a specific time period
+     * Enhanced to consider different activities with varying weights
+     *
+     * @param driverIds IDs of drivers to check
+     * @param days Number of days to look back
+     * @return Map of driver IDs to activity scores
+     */
+    private Map<UUID, Integer> countRecentActivitiesByDrivers(Set<UUID> driverIds, int days) {
+        Map<UUID, Integer> result = new HashMap<>();
+        if (driverIds.isEmpty()) {
+            return result;
+        }
+
+        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(days);
+
+        // Create tiers of activity dates to weight more recent activities more heavily
+        LocalDateTime veryRecentDate = LocalDateTime.now().minusDays(3);  // Last 3 days (high weight)
+        LocalDateTime recentDate = LocalDateTime.now().minusDays(7);      // Last week (medium weight)
+
+        for (UUID driverId : driverIds) {
+            // Get assignments with dates for this driver
+            List<VehicleAssignmentEntity> recentAssignments = entityService.findAssignmentsForDriverSince(driverId, cutoffDate);
+
+            int activityScore = 0;
+
+            // Calculate weighted score based on recency
+            for (VehicleAssignmentEntity assignment : recentAssignments) {
+                LocalDateTime assignmentDate = assignment.getCreatedAt();
+
+                // Very recent activities get higher weight
+                if (assignmentDate.isAfter(veryRecentDate)) {
+                    activityScore += 5;  // High weight for very recent assignments
+                }
+                // Recent activities get medium weight
+                else if (assignmentDate.isAfter(recentDate)) {
+                    activityScore += 3;  // Medium weight for assignments in the last week
+                }
+                // Older activities get lower weight
+                else {
+                    activityScore += 1;  // Low weight for older assignments
+                }
+
+                // Add extra weight if the driver was the primary driver
+                if (driverId.equals(assignment.getDriver1() != null ? assignment.getDriver1().getId() : null)) {
+                    activityScore += 1;  // Extra weight if they were the primary driver
+                }
+            }
+
+            result.put(driverId, activityScore);
+        }
+
+        return result;
     }
 }

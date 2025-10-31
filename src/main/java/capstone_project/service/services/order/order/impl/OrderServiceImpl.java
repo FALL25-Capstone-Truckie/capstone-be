@@ -19,7 +19,7 @@ import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.customer.CustomerEntity;
-import capstone_project.repository.entityServices.device.CameraTrackingEntityService;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.order.VehicleFuelConsumptionEntityService;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.CategoryEntityService;
@@ -29,14 +29,13 @@ import capstone_project.repository.entityServices.order.order.OrderSizeEntitySer
 import capstone_project.repository.entityServices.user.AddressEntityService;
 import capstone_project.repository.entityServices.user.CustomerEntityService;
 import capstone_project.repository.entityServices.user.PenaltyHistoryEntityService;
-import capstone_project.service.mapper.order.OrderDetailMapper;
-import capstone_project.service.mapper.order.OrderMapper;
-import capstone_project.service.mapper.order.SimpleOrderMapper;
-import capstone_project.service.mapper.order.StaffOrderMapper;
+import capstone_project.service.mapper.order.*;
 import capstone_project.service.services.issue.IssueImageService;
 import capstone_project.service.services.order.order.ContractService;
 import capstone_project.service.services.order.order.OrderService;
+import capstone_project.service.services.order.order.OrderStatusWebSocketService;
 import capstone_project.service.services.order.order.PhotoCompletionService;
+import capstone_project.service.services.order.seal.SealService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -70,9 +69,11 @@ public class OrderServiceImpl implements OrderService {
     private final SimpleOrderMapper simpleOrderMapper;
     private final UserContextUtils userContextUtils;
     private final StaffOrderMapper staffOrderMapper;
+    private final DriverOrderMapper driverOrderMapper;
     private final PenaltyHistoryEntityService penaltyHistoryEntityService;
-    private final CameraTrackingEntityService cameraTrackingEntityService;
     private final VehicleFuelConsumptionEntityService vehicleFuelConsumptionEntityService;
+    private final OrderStatusWebSocketService orderStatusWebSocketService;
+    private final SealService sealService; // Thêm SealService
 
     @Value("${prefix.order.code}")
     private String prefixOrderCode;
@@ -95,8 +96,16 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException(ErrorEnum.NOT_FOUND.getMessage(),
                     ErrorEnum.NOT_FOUND.getErrorCode());
         }
-        CustomerEntity sender = customerEntityService.findEntityById(UUID.fromString(orderRequest.senderId()))
-                .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + "sender not found",
+
+        UUID customerId = userContextUtils.getCurrentCustomerId();
+        if (customerId == null) {
+            log.error("Current customer id is null");
+            throw new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + " sender not found",
+                    ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        CustomerEntity sender = customerEntityService.findEntityById(customerId)
+                .orElseThrow(() -> new NotFoundException(ErrorEnum.NOT_FOUND.getMessage() + " sender not found",
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
         if (sender.getStatus().equals(CommonStatusEnum.INACTIVE.name())) {
@@ -175,8 +184,22 @@ public class OrderServiceImpl implements OrderService {
             );
         }
 
+        OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
+
+        // Send WebSocket notification for status change
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                orderId,
+                order.getOrderCode(),
+                previousStatus,
+                newStatus
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+            // Don't throw - WebSocket failure shouldn't break business logic
+        }
 
         return orderMapper.toCreateOrderResponse(order);
     }
@@ -208,6 +231,7 @@ public class OrderServiceImpl implements OrderService {
             );
         }
         // Update Order
+        OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
 
@@ -217,6 +241,18 @@ public class OrderServiceImpl implements OrderService {
         orderDetailEntities.forEach(detail -> detail.setStatus(newStatus.name()));
         orderDetailEntityService.saveAllOrderDetailEntities(orderDetailEntities);
 
+        // Send WebSocket notification for status change
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                orderId,
+                order.getOrderCode(),
+                previousStatus,
+                newStatus
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+            // Don't throw - WebSocket failure shouldn't break business logic
+        }
 
         return orderMapper.toCreateOrderResponse(order);
     }
@@ -234,17 +270,20 @@ public class OrderServiceImpl implements OrderService {
             case CONTRACT_DENIED:
                 return next == OrderStatusEnum.CANCELLED;
             case CONTRACT_SIGNED:
-                return next == OrderStatusEnum.ON_PLANNING;
+                return next == OrderStatusEnum.ON_PLANNING || next == OrderStatusEnum.FULLY_PAID;
             case ON_PLANNING:
                 return next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
             case ASSIGNED_TO_DRIVER:
-                return next == OrderStatusEnum.DRIVER_CONFIRM;
-            case DRIVER_CONFIRM:
-                return next == OrderStatusEnum.PICKED_UP;
-            case PICKED_UP:
-                return next == OrderStatusEnum.SEALED_COMPLETED;
-            case SEALED_COMPLETED:
-                return next == OrderStatusEnum.ON_DELIVERED;
+                return next == OrderStatusEnum.FULLY_PAID
+                        || next == OrderStatusEnum.PICKING_UP;
+            case FULLY_PAID:
+                return next == OrderStatusEnum.PICKING_UP
+                        || next == OrderStatusEnum.ON_DELIVERED
+                        || next == OrderStatusEnum.IN_TROUBLES;
+            case PICKING_UP:
+                return next == OrderStatusEnum.ON_DELIVERED
+                        || next == OrderStatusEnum.ONGOING_DELIVERED
+                        || next == OrderStatusEnum.IN_TROUBLES;
             case ON_DELIVERED:
                 return next == OrderStatusEnum.ONGOING_DELIVERED || next == OrderStatusEnum.IN_TROUBLES;
             case ONGOING_DELIVERED:
@@ -254,8 +293,8 @@ public class OrderServiceImpl implements OrderService {
             case RESOLVED:
                 return next == OrderStatusEnum.COMPENSATION;
             case DELIVERED:
-                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.REJECT_ORDER;
-            case REJECT_ORDER:
+                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.REJECTED || next == OrderStatusEnum.IN_TROUBLES;
+            case REJECTED:
                 return next == OrderStatusEnum.RETURNING;
             case RETURNING:
                 return next == OrderStatusEnum.RETURNED;
@@ -361,9 +400,9 @@ public class OrderServiceImpl implements OrderService {
 //                        throw new BadRequestException(ErrorEnum.INVALID_REQUEST.getMessage() + "orderSize's max weight have to be more than detail's weight", ErrorEnum.NOT_FOUND.getErrorCode());
 //                    }
                     return OrderDetailEntity.builder()
-                            .weightBaseUnit(request.weight())
+                            .weight(request.weight())  // Trọng lượng gốc người dùng nhập
                             .unit(request.unit())
-                            .weight(convertToTon(request.weight(), request.unit()))
+                            .weightBaseUnit(convertToTon(request.weight(), request.unit()))  // Convert về tấn
                             .description(request.description())
                             .status(savedOrder.getStatus())
                             .trackingCode(generateCode(prefixOrderDetailCode))
@@ -446,7 +485,7 @@ public class OrderServiceImpl implements OrderService {
         Map<UUID, List<PhotoCompletionResponse>> photoCompletionResponses = new HashMap<>();
         for (GetOrderDetailResponse detail : getOrderResponse.orderDetails()) {
             if (detail.vehicleAssignmentId() != null) {
-                UUID vehicleAssignmentId = detail.vehicleAssignmentId().id(); // lấy id
+                UUID vehicleAssignmentId = detail.vehicleAssignmentId(); // Use the UUID directly
                 getIssueImageResponses.add(
                         issueImageService.getByVehicleAssignment(vehicleAssignmentId)
                 );
@@ -486,39 +525,8 @@ public class OrderServiceImpl implements OrderService {
                 .map(GetOrderResponse::orderDetails)
                 .orElse(Collections.emptyList());
 
-        for (GetOrderDetailResponse detail : details) {
-            if (detail == null) continue;
-            var va = detail.vehicleAssignmentId();
-            if (va == null) continue;
-
-            UUID vehicleAssignmentId;
-            try {
-                vehicleAssignmentId = va.id();
-            } catch (Exception e) {
-                log.warn("Invalid vehicleAssignmentId structure for order {}: {}", orderId, e.getMessage());
-                continue;
-            }
-            if (vehicleAssignmentId == null) continue;
-            if (!processed.add(vehicleAssignmentId)) continue; // skip duplicates
-
-            try {
-                GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(vehicleAssignmentId);
-                if (issueImageResponse != null) {
-                    issuesByVehicleAssignment.put(vehicleAssignmentId, issueImageResponse);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fetch issue images for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
-            }
-
-            try {
-                List<PhotoCompletionResponse> photoCompletions = photoCompletionService.getByVehicleAssignmentId(vehicleAssignmentId);
-                if (photoCompletions != null && !photoCompletions.isEmpty()) {
-                    photosByVehicleAssignment.put(vehicleAssignmentId, photoCompletions);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fetch photo completions for vehicleAssignment {}: {}", vehicleAssignmentId, e.getMessage());
-            }
-        }
+        // Reuse the new helper method to process vehicle assignments
+        processVehicleAssignments(details, issuesByVehicleAssignment, photosByVehicleAssignment);
 
         // contract / transactions same as before
         ContractResponse contractResponse = null;
@@ -542,7 +550,7 @@ public class OrderServiceImpl implements OrderService {
 
 
     @Override
-    public StaffOrderForStaffResponse getOrderForStaffByOrderId(UUID orderId) {
+    public OrderForStaffResponse getOrderForStaffByOrderId(UUID orderId) {
         log.info("Getting order for staff with ID: {}", orderId);
 
         // Get the basic order information
@@ -564,6 +572,40 @@ public class OrderServiceImpl implements OrderService {
                 orderResponse,
                 contractResponse,
                 transactionResponses
+        );
+    }
+
+    @Override
+    public OrderForDriverResponse getOrderForDriverByOrderId(UUID orderId) {
+        GetOrderResponse getOrderResponse = getOrderById(orderId);
+
+        Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment = new HashMap<>();
+        Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment = new HashMap<>();
+
+        // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
+        Set<UUID> processed = new HashSet<>();
+        List<GetOrderDetailResponse> details = Optional.ofNullable(getOrderResponse)
+                .map(GetOrderResponse::orderDetails)
+                .orElse(Collections.emptyList());
+
+        // Reuse the new helper method to process vehicle assignments
+        processVehicleAssignments(details, issuesByVehicleAssignment, photosByVehicleAssignment);
+
+        // contract / transactions same as before
+        ContractResponse contractResponse = null;
+        List<TransactionResponse> transactionResponses = new ArrayList<>();
+        Optional<ContractEntity> contractEntity = contractEntityService.getContractByOrderId(orderId);
+        if (contractEntity.isPresent()) {
+            contractResponse = contractService.getContractById(contractEntity.get().getId());
+            transactionResponses = payOSTransactionService.getTransactionsByContractId(contractEntity.get().getId());
+        }
+
+        List<GetIssueImageResponse> issueImageResponsesList = new ArrayList<>(issuesByVehicleAssignment.values());
+
+        return driverOrderMapper.toOrderForDriverResponse(
+                getOrderResponse,
+                issueImageResponsesList,
+                photosByVehicleAssignment
         );
     }
 
@@ -605,8 +647,48 @@ public class OrderServiceImpl implements OrderService {
                     ErrorEnum.INVALID.getErrorCode()
             );
         }
+        
+        OrderStatusEnum previousStatus = currentStatus;
         order.setStatus(newStatus.name());
         orderEntityService.save(order);
+        
+        // Cập nhật trạng thái Seal thành USED khi đơn hàng hoàn thành (DELIVERED hoặc SUCCESSFUL)
+        if (newStatus == OrderStatusEnum.DELIVERED || newStatus == OrderStatusEnum.SUCCESSFUL) {
+            try {
+                // Tìm tất cả Seal liên quan đến Order
+                List<OrderDetailEntity> orderDetails = orderDetailEntityService.findOrderDetailEntitiesByOrderEntityId(orderId);
+
+                // Cập nhật trạng thái Seal cho từng VehicleAssignment liên quan
+                for (OrderDetailEntity detail : orderDetails) {
+                    VehicleAssignmentEntity vehicleAssignment = detail.getVehicleAssignmentEntity();
+                    if (vehicleAssignment != null) {
+                        // Cập nhật trạng thái các seal từ IN_USE -> USED
+                        int updatedSeals = sealService.updateSealsToUsed(vehicleAssignment);
+                        if (updatedSeals > 0) {
+                            log.info("Đã cập nhật {} seal thành USED cho VehicleAssignment {} khi Order {} chuyển sang trạng thái {}",
+                                    updatedSeals, vehicleAssignment.getId(), orderId, newStatus);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // Không throw exception để tránh ảnh hưởng đến luồng xử lý chính
+                log.error("Lỗi khi cập nhật trạng thái seal cho đơn hàng {}: {}", orderId, e.getMessage());
+            }
+        }
+
+        // Send WebSocket notification for status change
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                orderId,
+                order.getOrderCode(),
+                previousStatus,
+                newStatus
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for order status change: {}", e.getMessage());
+            // Don't throw - WebSocket failure shouldn't break business logic
+        }
+        
         return true;
     }
 
@@ -648,5 +730,185 @@ public class OrderServiceImpl implements OrderService {
                         ErrorEnum.NOT_FOUND.getErrorCode()));
 
         return orderMapper.toGetOrderByJpaResponse(order);
+    }
+
+    @Override
+    @Transactional
+    public CreateOrderResponse updateToOngoingDelivered(UUID orderId) {
+            
+
+        // Validate order ID
+        if (orderId == null) {
+            throw new BadRequestException(
+                    "Order ID cannot be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate current status is ON_DELIVERED or already ONGOING_DELIVERED
+        if (!OrderStatusEnum.ON_DELIVERED.name().equals(order.getStatus()) && 
+            !OrderStatusEnum.ONGOING_DELIVERED.name().equals(order.getStatus())) {
+            throw new BadRequestException(
+                    String.format("Cannot update to ONGOING_DELIVERED. Current status is %s, expected ON_DELIVERED or ONGOING_DELIVERED", 
+                            order.getStatus()),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // If already ONGOING_DELIVERED, just return current order
+        if (OrderStatusEnum.ONGOING_DELIVERED.name().equals(order.getStatus())) {
+            log.info("Order {} already in ONGOING_DELIVERED status, returning current state", orderId);
+            return orderMapper.toCreateOrderResponse(order);
+        }
+
+        // Update status to ONGOING_DELIVERED
+        order.setStatus(OrderStatusEnum.ONGOING_DELIVERED.name());
+        OrderEntity updatedOrder = orderEntityService.save(order);
+
+        log.info("Successfully updated order {} to ONGOING_DELIVERED", orderId);
+
+        // Send WebSocket notification
+//        orderStatusWebSocketService.sendOrderStatusUpdate(
+//                orderId,
+//                OrderStatusEnum.ONGOING_DELIVERED,
+//                "Xe đang trên đường giao hàng (trong phạm vi 3km)"
+//        );
+
+        return orderMapper.toCreateOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional
+    public CreateOrderResponse updateToDelivered(UUID orderId) {
+        log.info("Updating order {} to DELIVERED status", orderId);
+
+        // Validate order ID
+        if (orderId == null) {
+            throw new BadRequestException(
+                    "Order ID cannot be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate current status is ONGOING_DELIVERED
+        if (!OrderStatusEnum.ONGOING_DELIVERED.name().equals(order.getStatus())) {
+            throw new BadRequestException(
+                    String.format("Cannot update to DELIVERED. Current status is %s, expected ONGOING_DELIVERED", 
+                            order.getStatus()),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Update status to DELIVERED
+        order.setStatus(OrderStatusEnum.DELIVERED.name());
+        OrderEntity updatedOrder = orderEntityService.save(order);
+
+        log.info("Successfully updated order {} to DELIVERED", orderId);
+
+        // Send WebSocket notification
+//        orderStatusWebSocketService.sendOrderStatusUpdate(
+//                orderId,
+//                OrderStatusEnum.DELIVERED,
+//                "Đã đến điểm giao hàng"
+//        );
+
+        return orderMapper.toCreateOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional
+    public CreateOrderResponse updateToSuccessful(UUID orderId) {
+        log.info("Updating order {} to SUCCESSFUL status", orderId);
+
+        // Validate order ID
+        if (orderId == null) {
+            throw new BadRequestException(
+                    "Order ID cannot be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate current status is DELIVERED
+        if (!OrderStatusEnum.DELIVERED.name().equals(order.getStatus())) {
+            throw new BadRequestException(
+                    String.format("Cannot update to SUCCESSFUL. Current status is %s, expected DELIVERED", 
+                            order.getStatus()),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Update status to SUCCESSFUL
+        order.setStatus(OrderStatusEnum.SUCCESSFUL.name());
+        OrderEntity updatedOrder = orderEntityService.save(order);
+
+        log.info("Successfully updated order {} to SUCCESSFUL", orderId);
+
+        // Send WebSocket notification
+//        orderStatusWebSocketService.sendOrderStatusUpdate(
+//                orderId,
+//                OrderStatusEnum.SUCCESSFUL,
+//                "Chuyến xe đã hoàn thành thành công"
+//        );
+
+        return orderMapper.toCreateOrderResponse(updatedOrder);
+    }
+
+    /**
+     * Helper method to process vehicle assignments for order details
+     * Extracts issue images and photo completions for each vehicle assignment
+     */
+    private void processVehicleAssignments(
+            List<GetOrderDetailResponse> details,
+            Map<UUID, GetIssueImageResponse> issuesByVehicleAssignment,
+            Map<UUID, List<PhotoCompletionResponse>> photosByVehicleAssignment
+    ) {
+        // defensive: handle null orderDetails and avoid duplicate calls per vehicleAssignmentId
+        Set<UUID> processed = new HashSet<>();
+
+        for (GetOrderDetailResponse detail : details) {
+            if (detail == null) continue;
+            UUID va = detail.vehicleAssignmentId();
+            if (va == null) continue;
+            if (!processed.add(va)) continue; // skip duplicates
+
+            try {
+                GetIssueImageResponse issueImageResponse = issueImageService.getByVehicleAssignment(va);
+                if (issueImageResponse != null) {
+                    issuesByVehicleAssignment.put(va, issueImageResponse);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fetch issue images for vehicleAssignment {}: {}", va, e.getMessage());
+            }
+
+            try {
+                List<PhotoCompletionResponse> photoCompletions = photoCompletionService.getByVehicleAssignmentId(va);
+                if (photoCompletions != null && !photoCompletions.isEmpty()) {
+                    photosByVehicleAssignment.put(va, photoCompletions);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to fetch photo completions for vehicleAssignment {}: {}", va, e.getMessage());
+            }
+        }
     }
 }

@@ -19,14 +19,14 @@ import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
 import capstone_project.entity.order.order.OrderEntity;
 import capstone_project.entity.order.order.OrderSizeEntity;
-import capstone_project.entity.pricing.VehicleRuleEntity;
+import capstone_project.entity.pricing.VehicleTypeRuleEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.vehicle.VehicleTypeEntity;
 import capstone_project.repository.entityServices.order.contract.ContractEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.order.order.OrderSizeEntityService;
-import capstone_project.repository.entityServices.pricing.VehicleRuleEntityService;
+import capstone_project.repository.entityServices.pricing.VehicleTypeRuleEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
 import capstone_project.service.mapper.order.OrderDetailMapper;
@@ -54,7 +54,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
     private final ContractEntityService contractEntityService;
     private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
     private final ObjectProvider<VehicleAssignmentService> vehicleAssignmentServiceProvider;
-    private final VehicleRuleEntityService vehicleRuleEntityService;
+    private final VehicleTypeRuleEntityService vehicleTypeRuleEntityService;
     private final ContractRuleService contractRuleService;
     private final VehicleTypeEntityService vehicleTypeEntityService;
     private final OrderService orderService;
@@ -108,9 +108,9 @@ public class OrderDetailServiceImpl implements OrderDetailService {
                 .allMatch(d -> d.getStatus().equals(orderDetailStatus.name()));
 
         if (allSameStatus) {
-            // Update status của Order
-            orderEntity.setStatus(orderDetailStatus.name());
-            orderEntityService.save(orderEntity);
+            // Update status của Order and send WebSocket notification
+            orderService.updateOrderStatus(orderEntity.getId(), orderDetailStatus);
+            log.info("Updated order {} status to {} after all order details reached same status", orderEntity.getOrderCode(), orderDetailStatus);
         }
 
 
@@ -132,9 +132,9 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
 
         OrderEntity orderEntity = orderDetailEntity.getOrderEntity();
-        // Update status của Order
-        orderEntity.setStatus(OrderStatusEnum.IN_TROUBLES.name());
-        orderEntityService.save(orderEntity);
+        // Update status của Order and send WebSocket notification
+        orderService.updateOrderStatus(orderEntity.getId(), OrderStatusEnum.IN_TROUBLES);
+        log.info("Updated order {} status to IN_TROUBLES after driver reported issue for order detail {}", orderEntity.getOrderCode(), orderDetailId);
 
 
         return orderDetailMapper.toGetOrderDetailResponse(orderDetailEntity);
@@ -288,7 +288,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 //        List<ContractRuleAssignResponse> assignResponses = contractService.assignVehicles(orderId);
 //        Map<UUID,List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
 //        for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
-//            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findContractRuleEntitiesById(vehicleRuleEntityService.findContractRuleEntitiesById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
+//            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findContractRuleEntitiesById(vehicleTypeRuleEntityService.findContractRuleEntitiesById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
 //            mapVehicleTypeAndOrderDetail.put(
 //                    vehicleTypeEntity.getId(),
 //                    contractRuleAssignResponse.getAssignedDetails()
@@ -339,7 +339,7 @@ public class OrderDetailServiceImpl implements OrderDetailService {
         List<ContractRuleAssignResponse> assignResponses = contractService.assignVehiclesWithAvailability(orderId);
         Map<UUID, List<UUID>> mapVehicleTypeAndOrderDetail = new HashMap<>();
         for(ContractRuleAssignResponse contractRuleAssignResponse : assignResponses){
-            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleRuleEntityService.findEntityById(contractRuleAssignResponse.getVehicleRuleId()).get().getId()).get();
+            VehicleTypeEntity vehicleTypeEntity = vehicleTypeEntityService.findEntityById(vehicleTypeRuleEntityService.findEntityById(contractRuleAssignResponse.getVehicleTypeRuleId()).get().getId()).get();
             mapVehicleTypeAndOrderDetail.put(
                     vehicleTypeEntity.getId(),
                     contractRuleAssignResponse.getAssignedDetails()
@@ -362,8 +362,8 @@ public class OrderDetailServiceImpl implements OrderDetailService {
 
         // 3. Map VehicleTypeId -> List<OrderDetailId>
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
-            UUID vehicleRuleId = response.getVehicleRuleId();
-            VehicleRuleEntity vehicleRule = vehicleRuleEntityService.findEntityById(vehicleRuleId)
+            UUID vehicleRuleId = response.getVehicleTypeRuleId();
+            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
                     .orElseThrow(() -> new NotFoundException(
                             "Vehicle rule not found: " + vehicleRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
@@ -468,15 +468,21 @@ public class OrderDetailServiceImpl implements OrderDetailService {
             case PROCESSING:
                 return next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
             case ASSIGNED_TO_DRIVER:
-                return next == OrderStatusEnum.PICKED_UP;
-            case PICKED_UP:
-                return next == OrderStatusEnum.SEALED_COMPLETED;
-            case SEALED_COMPLETED:
-                return next == OrderStatusEnum.ONGOING_DELIVERED;
+                return next == OrderStatusEnum.PICKING_UP
+                        || next == OrderStatusEnum.IN_TROUBLES;
+            case PICKING_UP:
+                return next == OrderStatusEnum.ON_DELIVERED
+                        || next == OrderStatusEnum.ONGOING_DELIVERED
+                        || next == OrderStatusEnum.IN_TROUBLES;
+            case ON_DELIVERED:
+                return next == OrderStatusEnum.ONGOING_DELIVERED
+                        || next == OrderStatusEnum.IN_TROUBLES;
             case ONGOING_DELIVERED:
-                return next == OrderStatusEnum.DELIVERED;
+                return next == OrderStatusEnum.DELIVERED
+                        || next == OrderStatusEnum.IN_TROUBLES;
             case DELIVERED:
-                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.RETURNING;
+                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.RETURNING
+                        || next == OrderStatusEnum.IN_TROUBLES;
             case RETURNING:
                 return next == OrderStatusEnum.RETURNED;
             case RETURNED:

@@ -6,6 +6,7 @@ import capstone_project.repository.entityServices.order.transaction.TransactionE
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -50,5 +51,30 @@ public class TransactionEntityServiceImpl implements TransactionEntityService {
     @Override
     public List<TransactionEntity> findByStatusAndCreatedAtBefore(String status, OffsetDateTime time) {
         return transactionRepository.findByStatusAndCreatedAtBefore(status, time.toLocalDateTime());
+    }
+
+    @Override
+    public BigDecimal getTotalRevenueInYear() {
+        return transactionRepository.getTotalRevenueInYear();
+    }
+
+    @Override
+    public List<Object[]> getTotalRevenueCompareYear() {
+        return transactionRepository.getTotalRevenueCompareYear();
+    }
+
+    @Override
+    public List<Object[]> getTotalRevenueByMonth() {
+        return transactionRepository.getTotalRevenueByMonth();
+    }
+
+    @Override
+    public List<Object[]> getTotalRevenueByLast4Weeks() {
+        return transactionRepository.getTotalRevenueByLast4Weeks();
+    }
+
+    @Override
+    public BigDecimal sumPaidAmountByContractId(UUID contractId) {
+        return transactionRepository.sumPaidAmountByContractId(contractId);
     }
 }

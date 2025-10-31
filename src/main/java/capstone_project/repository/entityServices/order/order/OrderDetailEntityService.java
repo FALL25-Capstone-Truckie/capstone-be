@@ -1,6 +1,7 @@
 package capstone_project.repository.entityServices.order.order;
 
 import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.common.BaseEntityService;
 
 import java.util.List;
@@ -20,4 +21,24 @@ public interface OrderDetailEntityService extends BaseEntityService<OrderDetailE
      * @return Optional containing the OrderDetailEntity if found, or empty Optional otherwise
      */
     Optional<OrderDetailEntity> findByTrackingCode(String trackingCode);
+
+    List<Object[]> getOnTimeVsLateDeliveriesWithPercentage(Integer month, Integer year);
+
+    List<Object[]> topOnTimeDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount);
+
+    List<Object[]> topLateDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount);
+
+    /**
+     * Find order details by vehicle assignment entity
+     * @param vehicleAssignment The vehicle assignment entity
+     * @return List of order details associated with the vehicle assignment
+     */
+    List<OrderDetailEntity> findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignment);
+    
+    /**
+     * Find order details by vehicle assignment ID
+     * @param vehicleAssignmentId The vehicle assignment ID
+     * @return List of order details associated with the vehicle assignment
+     */
+    List<OrderDetailEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId);
 }

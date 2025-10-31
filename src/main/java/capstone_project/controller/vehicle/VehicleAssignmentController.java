@@ -66,12 +66,12 @@ public class VehicleAssignmentController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-    @GetMapping("/{orderId}/suggest-drivers-and-vehicle-for-details")
-    public ResponseEntity<ApiResponse<SimplifiedVehicleAssignmentResponse>> getSimplifiedSuggestions(
-            @PathVariable UUID orderId) {
-        SimplifiedVehicleAssignmentResponse response = service.getSimplifiedSuggestionsForOrder(orderId);
-        return ResponseEntity.ok(ApiResponse.ok(response));
-    }
+//    @GetMapping("/{orderId}/suggest-drivers-and-vehicle-for-details")
+//    public ResponseEntity<ApiResponse<SimplifiedVehicleAssignmentResponse>> getSimplifiedSuggestions(
+//            @PathVariable UUID orderId) {
+//        SimplifiedVehicleAssignmentResponse response = service.getSimplifiedSuggestionsForOrder(orderId);
+//        return ResponseEntity.ok(ApiResponse.ok(response));
+//    }
 
     @GetMapping("/{orderId}/grouped-suggestions")
     public ResponseEntity<ApiResponse<GroupedVehicleAssignmentResponse>> getGroupedSuggestions(

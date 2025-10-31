@@ -6,6 +6,7 @@ import capstone_project.common.enums.RoleTypeEnum;
 import capstone_project.common.enums.UserStatusEnum;
 import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
+import capstone_project.common.exceptions.dto.UnauthorizedException;
 import capstone_project.common.utils.JWTUtil;
 import capstone_project.dtos.request.auth.*;
 import capstone_project.dtos.request.user.RegisterCustomerRequest;
@@ -437,26 +438,65 @@ public class RegisterServiceImpl implements RegisterService {
     }
 
     @Override
+    @Transactional
     public RefreshTokenResponse refreshAccessToken(String refreshToken) {
+        log.info("[refreshAccessToken] START - Received refresh token request");
+        log.info("[refreshAccessToken] Token: {}...", refreshToken.substring(0, Math.min(20, refreshToken.length())));
+        
         RefreshTokenEntity tokenEntity = refreshTokenEntityService.findByToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found"));
+                .orElseThrow(() -> {
+                    log.error("[refreshAccessToken] Token not found in database");
+                    return new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
+                });
 
         LocalDateTime now = LocalDateTime.now();
 
         if (tokenEntity.getRevoked()) {
-            throw new RuntimeException("Refresh token revoked");
+            log.warn("[refreshAccessToken] ❌ Refresh token has been revoked - user_id: {}", tokenEntity.getUser().getId());
+            throw new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
         }
 
         if (tokenEntity.getExpiredAt().isBefore(now)) {
-            throw new RuntimeException("Refresh token expired");
+            log.warn("[refreshAccessToken] ❌ Refresh token has expired - expired_at: {}", tokenEntity.getExpiredAt());
+            throw new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
         }
 
         UserEntity user = userEntityService.findEntityById(tokenEntity.getUser().getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> {
+                    log.error("[refreshAccessToken] User not found");
+                    return new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
+                });
 
+        log.info("[refreshAccessToken] ✅ Token validation passed - user: {}", user.getUsername());
+
+        // Generate new access token
         String newAccessToken = JWTUtil.generateToken(user);
+        log.info("[refreshAccessToken] Generated new access token: {}...", newAccessToken.substring(0, 20));
+        
+        // SECURITY: Implement refresh token rotation
+        // Generate new refresh token
+        String newRefreshToken = JWTUtil.generateRefreshToken(user);
+        log.info("[refreshAccessToken] Generated new refresh token: {}...", newRefreshToken.substring(0, 20));
+        
+        // Revoke old refresh token
+        tokenEntity.setRevoked(true);
+        refreshTokenEntityService.save(tokenEntity);
+        log.info("[refreshAccessToken] ✅ Old token revoked");
+        
+        // Save new refresh token to database
+        RefreshTokenEntity newRefreshTokenEntity = RefreshTokenEntity.builder()
+                .token(newRefreshToken)
+                .user(user)
+                .createdAt(LocalDateTime.now())
+                .expiredAt(LocalDateTime.now().plusDays(30))
+                .revoked(false)
+                .build();
+        refreshTokenEntityService.save(newRefreshTokenEntity);
+        log.info("[refreshAccessToken] ✅ New token saved to database");
+        
+        log.info("[refreshAccessToken] ✅ Token rotation completed - returning new tokens with user info");
 
-        return new RefreshTokenResponse(newAccessToken);
+        return userMapper.mapRefreshTokenResponse(user, newAccessToken, newRefreshToken);
     }
 
     @Override
@@ -472,7 +512,8 @@ public class RegisterServiceImpl implements RegisterService {
             }
         }
 
-        throw new RuntimeException("Refresh token not found in cookies");
+        log.warn("[extractRefreshTokenFromCookies] Refresh token not found in cookies");
+        throw new UnauthorizedException(ErrorEnum.UNAUTHORIZED);
     }
 
     @Override
@@ -599,13 +640,71 @@ public class RegisterServiceImpl implements RegisterService {
     public void addRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
         Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken);
         cookie.setHttpOnly(true);
-        cookie.setSecure(true); // For HTTPS
+        // Only set secure flag for HTTPS (production)
+        // For localhost development, secure=false allows HTTP cookies
+        boolean isProduction = System.getenv("ENVIRONMENT") != null && System.getenv("ENVIRONMENT").equals("production");
+        cookie.setSecure(isProduction);
         cookie.setPath("/");
         cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days, should match your token expiration
+        log.info("[addRefreshTokenCookie] Setting refresh token cookie - secure={}, environment={}", isProduction, System.getenv("ENVIRONMENT"));
         response.addCookie(cookie);
     }
 
     public String generateOtp() {
         return String.format("%06d", new Random().nextInt(999999));
+    }
+
+    @Override
+    public boolean logout(HttpServletRequest request, HttpServletResponse response) {
+        log.info("[logout] Start function with cookie-based logout");
+        try {
+            String refreshToken = extractRefreshTokenFromCookies(request);
+            boolean result = logout(refreshToken);
+
+            // Clear the refresh token cookie
+            Cookie cookie = new Cookie(REFRESH_TOKEN_COOKIE_NAME, "");
+            cookie.setMaxAge(0); // Delete the cookie
+            cookie.setPath("/");
+            cookie.setHttpOnly(true);
+            cookie.setSecure(true);
+            response.addCookie(cookie);
+
+            return result;
+        } catch (Exception e) {
+            log.error("[logout] Error during logout: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    @Transactional
+    public boolean logout(String refreshToken) {
+        log.info("[logout] Start function with token-based logout");
+
+        if (refreshToken == null || refreshToken.isEmpty()) {
+            log.warn("[logout] No refresh token provided");
+            return false;
+        }
+
+        try {
+            Optional<RefreshTokenEntity> tokenEntity = refreshTokenEntityService.findByToken(refreshToken);
+
+            if (tokenEntity.isEmpty()) {
+                log.warn("[logout] Refresh token not found: {}", refreshToken);
+                return false;
+            }
+
+            RefreshTokenEntity token = tokenEntity.get();
+
+            // Mark the token as revoked
+            token.setRevoked(true);
+            refreshTokenEntityService.save(token);
+
+            log.info("[logout] Successfully revoked refresh token");
+            return true;
+        } catch (Exception e) {
+            log.error("[logout] Error revoking refresh token: {}", e.getMessage());
+            return false;
+        }
     }
 }

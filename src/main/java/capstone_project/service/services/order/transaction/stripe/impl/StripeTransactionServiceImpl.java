@@ -242,6 +242,7 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
                             .ifPresentOrElse(transaction -> {
                                 transaction.setStatus(TransactionEnum.PAID.name());
                                 transaction.setGatewayResponse(payload);
+                                transaction.setPaymentDate(java.time.LocalDateTime.now());
                                 transactionEntityService.save(transaction);
                                 updateContractStatusIfNeeded(transaction);
                                 log.info("Transaction {} marked as PAID", transaction.getId());
@@ -286,11 +287,18 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
         OrderEntity order = contract.getOrderEntity();
         if (order == null) {
-            log.warn("Contract {} has no order linked", contract.getId());
+            log.warn("No order found for contract {}", contract.getId());
             throw new NotFoundException(
-                    "No contract linked to transaction",
-                    ErrorEnum.NOT_FOUND.getErrorCode()
-            );
+                    "No order found for contract",
+                    ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        OrderService orderService = orderServiceObjectProvider.getIfAvailable();
+        if (orderService == null) {
+            log.warn("No order found for contract {}", contract.getId());
+            throw new NotFoundException(
+                    "No order found for contract",
+                    ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
@@ -299,16 +307,19 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
                 if (transaction.getAmount().compareTo(totalValue) < 0) {
                     contract.setStatus(ContractStatusEnum.DEPOSITED.name());
+                    // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    order.setStatus(OrderStatusEnum.ON_PLANNING.name());
+                    orderEntityService.save(order);
                 } else {
-                    OrderService orderService = orderServiceObjectProvider.getIfAvailable();
-                    if (orderService == null) {
-                        throw new RuntimeException("OrderService is not available");
-                    }
                     contract.setStatus(ContractStatusEnum.PAID.name());
-                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+                    // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    order.setStatus(OrderStatusEnum.FULLY_PAID.name());
+                    orderEntityService.save(order);
                 }
             }
+
             case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
+
             case REFUNDED -> {
                 contract.setStatus(ContractStatusEnum.REFUNDED.name());
                 order.setStatus(OrderStatusEnum.RETURNED.name());
@@ -317,7 +328,10 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
             }
         }
 
-        orderEntityService.save(order);
+        if (TransactionEnum.valueOf(transaction.getStatus()) == TransactionEnum.REFUNDED) {
+            orderEntityService.save(order);
+        }
+
         contractEntityService.save(contract);
         log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
     }
@@ -332,11 +346,11 @@ public class StripeTransactionServiceImpl implements StripeTransactionService {
 
         BigDecimal totalValue = contractEntity.getTotalValue();
         log.info("Total value for contract {} is {}", contractId, totalValue);
-        BigDecimal supportedValue = contractEntity.getSupportedValue();
-        log.info("Supported value for contract {} is {}", contractId, supportedValue);
+        BigDecimal adjustedValue = contractEntity.getAdjustedValue();
+        log.info("Supported value for contract {} is {}", contractId, adjustedValue);
 
-        if (supportedValue != null && supportedValue.compareTo(BigDecimal.ZERO) > 0) {
-            totalValue = supportedValue;
+        if (adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0) {
+            totalValue = adjustedValue;
         }
 
         if (totalValue == null || totalValue.compareTo(BigDecimal.ZERO) <= 0) {

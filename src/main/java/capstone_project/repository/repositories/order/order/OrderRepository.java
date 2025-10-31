@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface OrderRepository extends BaseRepository<OrderEntity> {
@@ -14,17 +15,44 @@ public interface OrderRepository extends BaseRepository<OrderEntity> {
 
     List<OrderEntity> findByDeliveryAddressId(UUID deliveryAddressId);
 
+    /**
+     * Find order by its unique order code
+     * @param orderCode the order code
+     * @return Optional containing the order if found
+     */
+    Optional<OrderEntity> findByOrderCode(String orderCode);
+
     @Query(value = """
-            SELECT o.*
+            SELECT DISTINCT o.*
             FROM orders o
                      JOIN order_details od ON o.id = od.order_id
                      JOIN vehicle_assignments va ON od.vehicle_assignment_id = va.id
                      LEFT JOIN drivers d1 ON va.driver_id_1 = d1.id
                      LEFT JOIN drivers d2 ON va.driver_id_2 = d2.id
             WHERE d1.id = :driverId
-               OR d2.id = :driverId;
+               OR d2.id = :driverId
+            ORDER BY o.created_at DESC;
             """, nativeQuery = true)
     List<OrderEntity> findOrdersByDriverId(@Param("driverId") UUID driverId);
+
+    /**
+     * Find order associated with a vehicle assignment
+     *
+     * @param assignmentId the UUID of the vehicle assignment
+     *
+     * @return Optional containing the order if found
+     */
+    @Query(value = """
+            SELECT o.*
+            FROM orders o
+            WHERE o.id = (
+                SELECT od.order_id
+                FROM order_details od
+                WHERE od.vehicle_assignment_id = :assignmentId
+                LIMIT 1
+            )
+            """, nativeQuery = true)
+    Optional<OrderEntity> findVehicleAssignmentOrder(@Param("assignmentId") UUID assignmentId);
 
     /**
      * Find recent orders by customer ID with limit
@@ -118,5 +146,55 @@ public interface OrderRepository extends BaseRepository<OrderEntity> {
             """, nativeQuery = true)
     List<Object[]> countOrderByYear(@Param("amount") int amount);
 
+    @Query(value = """
+            WITH ranked AS (
+                SELECT
+                    c.id AS customerId,
+                    c.company_name AS companyName,
+                    COUNT(o.id) AS orderCount,
+                    RANK() OVER (ORDER BY COUNT(o.id) DESC) AS rank
+                FROM orders o
+                         JOIN customers c ON o.customer_id = c.id
+                WHERE (:year IS NULL OR EXTRACT(YEAR FROM o.created_at) = :year)
+                  AND (:month IS NULL OR EXTRACT(MONTH FROM o.created_at) = :month)
+                GROUP BY c.id, c.company_name
+            )
+            SELECT customerId, companyName, orderCount, rank
+            FROM ranked
+            WHERE rank <= :amount
+            ORDER BY rank, companyName ASC;
+            """, nativeQuery = true)
+    List<Object[]> topSenderByMonthAndYear(
+            @Param("month") Integer month,
+            @Param("year") Integer year,
+            @Param("amount") int amount
+    );
 
+
+    @Query(value = """
+            WITH ranked AS (
+                              SELECT\s
+                                  d.id AS driverId,
+                                  u.full_name AS driverName,
+                                  COUNT(o.id) AS orderCount,
+                                  RANK() OVER (ORDER BY COUNT(o.id) DESC) AS rank
+                              FROM orders o
+                                       JOIN order_details od ON o.id = od.order_id
+                                       JOIN vehicle_assignments va ON od.vehicle_assignment_id = va.id
+                                       LEFT JOIN drivers d ON va.driver_id_1 = d.id OR va.driver_id_2 = d.id
+                                       JOIN users u ON d.user_id = u.id
+                              WHERE (:year IS NULL OR EXTRACT(YEAR FROM o.created_at) = :year)
+                                AND (:month IS NULL OR EXTRACT(MONTH FROM o.created_at) = :month)
+                              GROUP BY d.id, u.full_name
+                          )
+                          SELECT driverId, driverName, orderCount, rank
+                          FROM ranked
+                          WHERE rank <= :amount
+                          ORDER BY rank, driverName ASC;
+            """, nativeQuery = true)
+    List<Object[]> topDriverByMonthAndYear(
+            @Param("month") Integer month,
+            @Param("year") Integer year,
+            @Param("amount") int amount
+    );
 }

@@ -1,11 +1,13 @@
 package capstone_project.controller.order;
 
+import capstone_project.common.enums.OrderDetailStatusEnum;
 import capstone_project.common.enums.OrderStatusEnum;
 import capstone_project.common.enums.UnitEnum;
 import capstone_project.dtos.request.order.CreateOrderAndDetailRequest;
 import capstone_project.dtos.request.order.UpdateOrderRequest;
 import capstone_project.dtos.response.common.ApiResponse;
 import capstone_project.dtos.response.order.*;
+import capstone_project.service.services.order.order.OrderDetailStatusService;
 import capstone_project.service.services.order.order.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderService orderService;
+    private final OrderDetailStatusService orderDetailStatusService;
 
     @GetMapping("/get-my-orders")
     public ResponseEntity<ApiResponse<List<OrderForCustomerListResponse>>> getMyOrders() {
@@ -85,12 +88,12 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @GetMapping("/get-orders-for-cus-by-user-id/{userId}")
-    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrdersForCusByUserId(@PathVariable UUID userId
-    ) {
-        final var result = orderService.getOrdersForCusByUserId(userId);
-        return ResponseEntity.ok(ApiResponse.ok(result));
-    }
+//    @GetMapping("/get-orders-for-cus-by-user-id/{userId}")
+//    public ResponseEntity<ApiResponse<List<CreateOrderResponse>>> getAllOrdersForCusByUserId(@PathVariable UUID userId
+//    ) {
+//        final var result = orderService.getOrdersForCusByUserId(userId);
+//        return ResponseEntity.ok(ApiResponse.ok(result));
+//    }
 
     @GetMapping("/get-by-id/{orderId}")
     public ResponseEntity<ApiResponse<GetOrderResponse>> getOrderById(@PathVariable UUID orderId
@@ -113,7 +116,7 @@ public class OrderController {
 
     @GetMapping("/get-order-for-staff-by-order-id/{orderId}")
     @PreAuthorize("hasRole('STAFF') or hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<StaffOrderForStaffResponse>> getOrderForStaffByOrderId(@PathVariable UUID orderId) {
+    public ResponseEntity<ApiResponse<OrderForStaffResponse>> getOrderForStaffByOrderId(@PathVariable UUID orderId) {
         final var result = orderService.getOrderForStaffByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
@@ -131,9 +134,83 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
-    @GetMapping("/get-all-data-for-order/{orderId}")
-    public ResponseEntity<ApiResponse<GetOrderByJpaResponse>> getSimplifiedOrderForCustomerV2ByOrderId(@PathVariable UUID orderId) {
-        final var result = orderService.getSimplifiedOrderForCustomerV2ByOrderId(orderId);
+    @GetMapping("/get-order-for-driver-by-order-id/{orderId}")
+    public ResponseEntity<ApiResponse<OrderForDriverResponse>> getOrderForDriverByOrderId(@PathVariable UUID orderId) {
+        final var result = orderService.getOrderForDriverByOrderId(orderId);
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Update order status to ONGOING_DELIVERED when vehicle is near delivery point (within 3km)
+     * Only valid when current status is ON_DELIVERED
+     * 
+     * @param orderId the order ID to update
+     * @return updated order response
+     */
+    @PutMapping("/{orderId}/start-ongoing-delivery")
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> startOngoingDelivery(@PathVariable UUID orderId) {
+        final var result = orderService.updateToOngoingDelivered(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Update order status to DELIVERED when vehicle arrives at delivery point
+     * Only valid when current status is ONGOING_DELIVERED
+     * 
+     * @param orderId the order ID to update
+     * @return updated order response
+     */
+    @PutMapping("/{orderId}/arrive-at-delivery")
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> arriveAtDelivery(@PathVariable UUID orderId) {
+        final var result = orderService.updateToDelivered(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    /**
+     * Complete the trip and update order status to SUCCESSFUL
+     * Only valid when current status is DELIVERED
+     * Driver confirms successful delivery completion
+     * 
+     * @param orderId the order ID to update
+     * @return updated order response
+     */
+    @PutMapping("/{orderId}/complete-trip")
+    public ResponseEntity<ApiResponse<CreateOrderResponse>> completeTrip(@PathVariable UUID orderId) {
+        final var result = orderService.updateToSuccessful(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+    
+    /**
+     * NEW ENDPOINT: Update OrderDetail status for a specific vehicle assignment
+     * This is the primary endpoint for drivers to update delivery status
+     * Supports multi-trip orders by updating only the OrderDetails for a specific trip
+     * 
+     * @param vehicleAssignmentId ID of the vehicle assignment (trip)
+     * @param status New status to set for all OrderDetails in this trip
+     * @return Success response
+     */
+    @PutMapping("/vehicle-assignment/{vehicleAssignmentId}/status")
+    public ResponseEntity<ApiResponse<Void>> updateOrderDetailStatusByAssignment(
+            @PathVariable UUID vehicleAssignmentId,
+            @RequestParam OrderDetailStatusEnum status) {
+        orderDetailStatusService.updateOrderDetailStatusByAssignment(vehicleAssignmentId, status);
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+    
+    /**
+     * NEW ENDPOINT: Update OrderDetail status to ONGOING_DELIVERED when driver is near delivery point
+     * Specific endpoint for the proximity-triggered status update (< 3km from delivery)
+     * 
+     * @param vehicleAssignmentId ID of the vehicle assignment (trip)
+     * @return Success response
+     */
+    @PutMapping("/vehicle-assignment/{vehicleAssignmentId}/ongoing-delivery")
+    public ResponseEntity<ApiResponse<Boolean>> updateToOngoingDeliveredByAssignment(
+            @PathVariable UUID vehicleAssignmentId) {
+        orderDetailStatusService.updateOrderDetailStatusByAssignment(
+                vehicleAssignmentId,
+                OrderDetailStatusEnum.ONGOING_DELIVERED
+        );
+        return ResponseEntity.ok(ApiResponse.ok(true));
     }
 }

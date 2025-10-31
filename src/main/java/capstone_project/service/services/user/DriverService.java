@@ -16,11 +16,13 @@ public interface DriverService {
 
     DriverResponse getDriverById(UUID id);
 
-    DriverResponse getDriverByUserId(UUID userId);
+    DriverResponse getDriverByUserId();
 
     DriverResponse updateDriver(UUID driverId, UpdateDriverRequest updateDriverRequest);
 
     DriverResponse updateDriverStatus(UUID driverId, String status);
 
     boolean isCheckClassDriverLicenseForVehicleType(DriverEntity driver, VehicleTypeEnum vehicleType);
+
+    List<DriverResponse> generateBulkDrivers(Integer count);
 }

@@ -1,6 +1,7 @@
 package capstone_project.repository.entityServices.order.order.impl;
 
 import capstone_project.entity.order.order.SealEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.order.order.SealEntityService;
 import capstone_project.repository.repositories.order.order.SealRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SealEntityServiceImpl implements SealEntityService {
     private final SealRepository sealRepository;
-
 
     @Override
     public SealEntity save(SealEntity entity) {
@@ -32,7 +32,27 @@ public class SealEntityServiceImpl implements SealEntityService {
     }
 
     @Override
-    public SealEntity findBySealCode(String sealCode) {
+    public List<SealEntity> saveAll(List<SealEntity> sealEntities) {
+        return sealRepository.saveAll(sealEntities);
+    }
+
+    @Override
+    public List<SealEntity> findBySealCode(String sealCode) {
         return sealRepository.findBySealCode(sealCode);
+    }
+
+    @Override
+    public SealEntity findByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment, String status) {
+        return sealRepository.findFirstByVehicleAssignmentAndStatus(vehicleAssignment, status);
+    }
+
+    @Override
+    public List<SealEntity> findAllByVehicleAssignment(VehicleAssignmentEntity vehicleAssignment) {
+        return sealRepository.findByVehicleAssignment(vehicleAssignment);
+    }
+
+    @Override
+    public List<SealEntity> findAllByVehicleAssignmentAndStatus(VehicleAssignmentEntity vehicleAssignment, String status) {
+        return sealRepository.findAllByVehicleAssignmentAndStatus(vehicleAssignment, status);
     }
 }

@@ -23,6 +23,7 @@ import capstone_project.service.services.order.order.OrderService;
 import capstone_project.service.services.order.transaction.payOS.PayOSTransactionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -55,6 +56,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final ObjectMapper objectMapper;
 
     @Override
+    @Transactional
     public TransactionResponse createTransaction(UUID contractId) {
         log.info("Creating transaction for contract {}", contractId);
 
@@ -130,8 +132,12 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
 
     @Override
+    @Transactional
     public TransactionResponse createDepositTransaction(UUID contractId) {
         log.info("Creating transaction for contract {}", contractId);
+
+        log.info("Creating PayOS PaymentData: cancelUrl={}, returnUrl={}",
+                properties.getCancelUrl(), properties.getReturnUrl());
 
         Long payOsOrderCode = System.currentTimeMillis();
 
@@ -170,6 +176,7 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         PaymentData paymentData = PaymentData.builder()
                 .orderCode(payOsOrderCode)
                 .amount(depositAmount.setScale(0, RoundingMode.HALF_UP).intValueExact())
+//                .amount(4000)
                 .description("Create deposit")
 //                                .items(List.of(item))
                 .cancelUrl(properties.getCancelUrl())
@@ -178,6 +185,8 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         try {
             var response = payOS.createPaymentLink(paymentData);
+
+            log.info("PayOS response: {}", objectMapper.writeValueAsString(response));
 
             TransactionEntity transaction = TransactionEntity.builder()
                     .id(UUID.randomUUID())
@@ -213,11 +222,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         BigDecimal totalValue = contractEntity.getTotalValue();
         log.info("Total value for contract {} is {}", contractId, totalValue);
-        BigDecimal supportedValue = contractEntity.getSupportedValue();
-        log.info("Supported value for contract {} is {}", contractId, supportedValue);
+        BigDecimal adjustedValue = contractEntity.getAdjustedValue();
+        log.info("Supported value for contract {} is {}", contractId, adjustedValue);
 
-        if (supportedValue != null && supportedValue.compareTo(BigDecimal.ZERO) > 0) {
-            totalValue = supportedValue;
+        if (adjustedValue != null && adjustedValue.compareTo(BigDecimal.ZERO) > 0) {
+            totalValue = adjustedValue;
         }
 
         if (totalValue == null || totalValue.compareTo(BigDecimal.ZERO) <= 0) {
@@ -351,54 +360,68 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     }
 
     @Override
+    @Transactional
     public void handleWebhook(String rawCallbackPayload) {
         log.info("Handling webhook with payload: {}", rawCallbackPayload);
         try {
             JsonNode webhookEvent = objectMapper.readTree(rawCallbackPayload);
 
-            String orderCode = webhookEvent.path("data").path("orderCode").asText();
-            String payOsStatus = webhookEvent.path("data").path("status").asText();
+            String orderCode = webhookEvent.path("data").path("orderCode").asText(null);
+            String payOsStatus = webhookEvent.path("data").path("status").asText(null);
+            String payOsCode = webhookEvent.path("data").path("code").asText(null);
 
-            if (orderCode == null || payOsStatus == null) {
-                log.error("Invalid webhook payload: {}", rawCallbackPayload);
-                throw new BadRequestException("Invalid webhook payload", ErrorEnum.INVALID.getErrorCode());
+            // Skip test webhook
+            if ("123".equals(orderCode)) {
+                log.info("Received PayOS test webhook with orderCode=123, skipping...");
+                return;
             }
 
-            TransactionEntity transaction = transactionEntityService.findByGatewayOrderCode(orderCode)
-                    .orElseThrow(() -> new NotFoundException(
-                            "Transaction not found for orderCode " + orderCode,
-                            ErrorEnum.NOT_FOUND.getErrorCode()
-                    ));
+            if (orderCode == null) {
+                log.error("Invalid webhook payload: {}", rawCallbackPayload);
+                return;
+            }
 
-//            String mappedStatus = mapPayOsStatusToTransactionStatus(payOsStatus);
+            transactionEntityService.findByGatewayOrderCode(orderCode).ifPresentOrElse(transaction -> {
+                TransactionEnum mappedStatus = mapPayOsStatusToEnum(payOsStatus, payOsCode);
 
-            transaction.setStatus(payOsStatus.toUpperCase());
-            transaction.setGatewayResponse(rawCallbackPayload);
+                transaction.setStatus(mappedStatus.name());
+                transaction.setGatewayResponse(rawCallbackPayload);
+                transaction.setPaymentDate(java.time.LocalDateTime.now());
+                transactionEntityService.save(transaction);
 
-            transactionEntityService.save(transaction);
+                log.info("Webhook processed successfully. TxnId={}, PayOS status={}, Mapped status={}",
+                        transaction.getId(), payOsStatus, mappedStatus);
 
-            log.info("Webhook processed successfully. TxnId={}, PayOS status={}, Mapped status={}",
-                    transaction.getId(), payOsStatus, payOsStatus.toUpperCase());
-
-            updateContractStatusIfNeeded(transaction);
+                updateContractStatusIfNeeded(transaction);
+            }, () -> {
+                log.warn("Transaction not found for orderCode {}", orderCode);
+            });
 
         } catch (Exception e) {
             log.error("Failed to handle webhook", e);
-            throw new RuntimeException("Webhook processing error", e);
         }
     }
 
-//    private String mapPayOsStatusToTransactionStatus(String payOsStatus) {
-//        return switch (payOsStatus.toUpperCase()) {
-//            case "PAID" -> TransactionEnum.PAID.name();
-//            case "CANCELLED" -> TransactionEnum.CANCELLED.name();
-//            case "EXPIRED" -> TransactionEnum.EXPIRED.name();
-//            case "FAILED" -> TransactionEnum.FAILED.name();
-//            case "REFUNDED" -> TransactionEnum.REFUNDED.name();
-//            case "PENDING" -> TransactionEnum.PENDING.name();
-//            default -> TransactionEnum.FAILED.name();
-//        };
-//    }
+
+    private TransactionEnum mapPayOsStatusToEnum(String payOsStatus, String code) {
+        if (code != null && code.equals("00")) {
+            return TransactionEnum.PAID;
+        }
+
+        if (payOsStatus == null) {
+            return TransactionEnum.PENDING;
+        }
+
+        return switch (payOsStatus.toLowerCase()) {
+            case "paid", "success", "completed" -> TransactionEnum.PAID;
+            case "cancel", "cancelled", "canceled" -> TransactionEnum.CANCELLED;
+            case "failed", "error" -> TransactionEnum.FAILED;
+            case "expired", "timeout" -> TransactionEnum.EXPIRED;
+            case "refunded" -> TransactionEnum.REFUNDED;
+            default -> TransactionEnum.PENDING;
+        };
+    }
+
 
     private void updateContractStatusIfNeeded(TransactionEntity transaction) {
         ContractEntity contract = transaction.getContractEntity();
@@ -412,29 +435,48 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
 
         OrderEntity order = contract.getOrderEntity();
         if (order == null) {
-            log.warn("Contract {} has no order linked", contract.getId());
+            log.warn("No order found for contract {}", contract.getId());
             throw new NotFoundException(
-                    "No contract linked to transaction",
-                    ErrorEnum.NOT_FOUND.getErrorCode()
-            );
+                    "No order found for contract",
+                    ErrorEnum.NOT_FOUND.getErrorCode());
+        }
+
+        OrderService orderService = orderServiceObjectProvider.getIfAvailable();
+        if (orderService == null) {
+            log.warn("No order found for contract {}", contract.getId());
+            throw new NotFoundException(
+                    "No order found for contract",
+                    ErrorEnum.NOT_FOUND.getErrorCode());
         }
 
         switch (TransactionEnum.valueOf(transaction.getStatus())) {
             case PAID -> {
                 BigDecimal totalValue = validationTotalValue(contract.getId());
+                BigDecimal totalPaidAmount = transactionEntityService.sumPaidAmountByContractId(contract.getId());
 
-                if (transaction.getAmount().compareTo(totalValue) < 0) {
-                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
-                } else {
-                    OrderService orderService = orderServiceObjectProvider.getIfAvailable();
-                    if (orderService == null) {
-                        throw new RuntimeException("OrderService is not available");
-                    }
+                log.info(">>>> DEBUG: Total Value = {}, Total Paid Amount from DB = {}", totalValue, totalPaidAmount);
+
+                if (totalPaidAmount == null) {
+                    totalPaidAmount = BigDecimal.ZERO;
+                }
+
+                if (totalPaidAmount.compareTo(totalValue) >= 0) {
+                    log.info("Test1");
                     contract.setStatus(ContractStatusEnum.PAID.name());
-                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+                    // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    order.setStatus(OrderStatusEnum.FULLY_PAID.name());
+                    orderEntityService.save(order);
+                } else {
+                    log.info("Test2");
+                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
+                    // Update Order status only (OrderDetail will be updated when assigned to driver)
+                    order.setStatus(OrderStatusEnum.ON_PLANNING.name());
+                    orderEntityService.save(order);
                 }
             }
+
             case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
+
             case REFUNDED -> {
                 contract.setStatus(ContractStatusEnum.REFUNDED.name());
                 order.setStatus(OrderStatusEnum.RETURNED.name());
@@ -443,10 +485,70 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
             }
         }
 
-        orderEntityService.save(order);
+        if (TransactionEnum.valueOf(transaction.getStatus()) == TransactionEnum.REFUNDED) {
+            orderEntityService.save(order);
+        }
+
         contractEntityService.save(contract);
         log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
     }
+
+//    private void updateContractStatusIfNeeded(TransactionEntity transaction) {
+//        ContractEntity contract = transaction.getContractEntity();
+//        if (contract == null) {
+//            log.warn("Transaction {} has no contract linked", transaction.getId());
+//            throw new NotFoundException(
+//                    "No contract linked to transaction",
+//                    ErrorEnum.NOT_FOUND.getErrorCode()
+//            );
+//        }
+//
+//        OrderEntity order = contract.getOrderEntity();
+//        if (order == null) {
+//            log.warn("No order found for contract {}", contract.getId());
+//            throw new NotFoundException(
+//                    "No order found for contract",
+//                    ErrorEnum.NOT_FOUND.getErrorCode());
+//        }
+//
+//        OrderService orderService = orderServiceObjectProvider.getIfAvailable();
+//        if (orderService == null) {
+//            log.warn("No order found for contract {}", contract.getId());
+//            throw new NotFoundException(
+//                    "No order found for contract",
+//                    ErrorEnum.NOT_FOUND.getErrorCode());
+//        }
+//
+//        switch (TransactionEnum.valueOf(transaction.getStatus())) {
+//            case PAID -> {
+//                BigDecimal totalValue = validationTotalValue(contract.getId());
+//
+//                if (transaction.getAmount().compareTo(totalValue) < 0) {
+//                    contract.setStatus(ContractStatusEnum.DEPOSITED.name());
+//                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.ON_PLANNING);
+//                } else {
+//                    contract.setStatus(ContractStatusEnum.PAID.name());
+//                    orderService.changeStatusOrderWithAllOrderDetail(order.getId(), OrderStatusEnum.FULLY_PAID);
+//                }
+//            }
+//
+//            case CANCELLED, EXPIRED, FAILED -> contract.setStatus(ContractStatusEnum.UNPAID.name());
+//
+//            case REFUNDED -> {
+//                contract.setStatus(ContractStatusEnum.REFUNDED.name());
+//                order.setStatus(OrderStatusEnum.RETURNED.name());
+//            }
+//            default -> {
+//            }
+//        }
+//
+//        if (TransactionEnum.valueOf(transaction.getStatus()) == TransactionEnum.REFUNDED) {
+//            orderEntityService.save(order);
+//        }
+//
+//        contractEntityService.save(contract);
+//        log.info("Contract {} updated to status {}", contract.getId(), contract.getStatus());
+//    }
 
 
     @Override

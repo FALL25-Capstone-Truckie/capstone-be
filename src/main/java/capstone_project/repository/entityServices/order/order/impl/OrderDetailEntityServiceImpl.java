@@ -1,8 +1,10 @@
 package capstone_project.repository.entityServices.order.order.impl;
 
 import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.repositories.order.order.OrderDetailRepository;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,7 @@ import java.util.UUID;
 public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
 
     private final OrderDetailRepository orderDetailRepository;
+    private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
     @Override
     public OrderDetailEntity save(OrderDetailEntity entity) {
@@ -56,5 +59,32 @@ public class OrderDetailEntityServiceImpl implements OrderDetailEntityService {
     @Override
     public Optional<OrderDetailEntity> findByTrackingCode(String trackingCode) {
         return orderDetailRepository.findByTrackingCode(trackingCode);
+    }
+
+    @Override
+    public List<Object[]> getOnTimeVsLateDeliveriesWithPercentage(Integer month, Integer year) {
+        return orderDetailRepository.getOnTimeVsLateDeliveriesWithPercentage(month, year);
+    }
+
+    @Override
+    public List<Object[]> topOnTimeDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount) {
+        return orderDetailRepository.topOnTimeDeliveriesByDriversWithPercentage(month, year, amount);
+    }
+
+    @Override
+    public List<Object[]> topLateDeliveriesByDriversWithPercentage(Integer month, Integer year, int amount) {
+        return orderDetailRepository.topLateDeliveriesByDriversWithPercentage(month, year, amount);
+    }
+
+    @Override
+    public List<OrderDetailEntity> findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignment) {
+        return orderDetailRepository.findByVehicleAssignmentEntity(vehicleAssignment);
+    }
+    
+    @Override
+    public List<OrderDetailEntity> findByVehicleAssignmentId(UUID vehicleAssignmentId) {
+        VehicleAssignmentEntity assignment = vehicleAssignmentEntityService.findById(vehicleAssignmentId)
+            .orElseThrow(() -> new RuntimeException("Vehicle assignment not found: " + vehicleAssignmentId));
+        return orderDetailRepository.findByVehicleAssignmentEntity(assignment);
     }
 }

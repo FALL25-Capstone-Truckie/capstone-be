@@ -1,10 +1,12 @@
 package capstone_project.controller.room;
 
+import capstone_project.dtos.request.room.ChatImageRequest;
 import capstone_project.dtos.request.room.MessageRequest;
 import capstone_project.dtos.response.room.ChatPageResponse;
 import capstone_project.dtos.response.room.ChatResponseDTO;
 import capstone_project.service.services.room.ChatService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -13,6 +15,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -39,6 +42,16 @@ public class ChatController {
                     messagingTemplate.convertAndSend("/topic/room/" + roomId, saved);
                 });
     }
+
+    @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<String> uploadChatImage(
+            @ModelAttribute ChatImageRequest chatImageRequest
+    ) throws IOException {
+        String imageUrl = chatService.uploadChatImage(chatImageRequest);
+        return ResponseEntity.ok(imageUrl);
+    }
+
+
 
     //Đây là lấy tất cả messages từ roomID
     @GetMapping("/rooms/{roomId}/messages")
