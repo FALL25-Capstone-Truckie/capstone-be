@@ -27,6 +27,7 @@ import capstone_project.service.services.cloudinary.CloudinaryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -45,19 +46,34 @@ public class IssueServiceImpl implements IssueService {
     private final SealEntityService sealEntityService;
     private final CloudinaryService cloudinaryService;
     private final SealMapper sealMapper;
+    private final capstone_project.repository.entityServices.issue.IssueImageEntityService issueImageEntityService;
 
 
     @Override
     public GetBasicIssueResponse getBasicIssue(UUID issueId) {
-        IssueEntity getIssue = issueEntityService.findEntityById(issueId).get();
+        // Use findByIdWithDetails to eagerly fetch all related entities
+        IssueEntity getIssue = issueEntityService.findByIdWithDetails(issueId)
+                .orElseThrow(() -> new RuntimeException("Issue not found"));
+
         GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(getIssue);
+
+        // Fetch issue images
+        List<String> issueImages = issueImageEntityService.findByIssueEntity_Id(issueId)
+                .stream()
+                .map(capstone_project.entity.issue.IssueImageEntity::getImageUrl)
+                .collect(java.util.stream.Collectors.toList());
         
-        // Populate vehicle assignment với nested objects
+        log.info("📸 Fetched {} issue images for issue {}", issueImages.size(), issueId);
+        if (!issueImages.isEmpty()) {
+            log.info("   - Image URLs: {}", issueImages);
+        }
+        
+        // Populate vehicle assignment với nested objects (now with user info already loaded)
         if (getIssue.getVehicleAssignmentEntity() != null) {
             var vehicleAssignment = getIssue.getVehicleAssignmentEntity();
             var enrichedVA = mapVehicleAssignmentWithDetails(vehicleAssignment);
             
-            // Create new response with enriched vehicle assignment
+            // Create new response with enriched vehicle assignment, issue images, and order detail
             return new GetBasicIssueResponse(
                 response.id(),
                 response.description(),
@@ -74,11 +90,33 @@ public class IssueServiceImpl implements IssueService {
                 response.newSeal(),
                 response.sealRemovalImage(),
                 response.newSealAttachedImage(),
-                response.newSealConfirmedAt()
+                response.newSealConfirmedAt(),
+                issueImages,
+                response.orderDetail()
             );
         }
         
-        return response;
+        // Return with issue images and order detail even if no vehicle assignment
+        return new GetBasicIssueResponse(
+            response.id(),
+            response.description(),
+            response.locationLatitude(),
+            response.locationLongitude(),
+            response.status(),
+            response.issueCategory(),
+            response.reportedAt(),
+            response.resolvedAt(),
+            response.vehicleAssignmentEntity(),
+            response.staff(),
+            response.issueTypeEntity(),
+            response.oldSeal(),
+            response.newSeal(),
+            response.sealRemovalImage(),
+            response.newSealAttachedImage(),
+            response.newSealConfirmedAt(),
+            issueImages,
+            response.orderDetail()
+        );
     }
     
     private capstone_project.dtos.response.vehicle.VehicleAssignmentResponse mapVehicleAssignmentWithDetails(
@@ -320,7 +358,7 @@ public class IssueServiceImpl implements IssueService {
 
     @Override
     public List<GetBasicIssueResponse> getAllIssues() {
-        return issueMapper.toIssueBasicResponses(issueEntityService.findAll());
+        return issueMapper.toIssueBasicResponses(issueEntityService.findAllSortedByReportedAtDesc());
     }
 
     @Override
@@ -481,9 +519,10 @@ public class IssueServiceImpl implements IssueService {
 
         // Lưu issue
         IssueEntity saved = issueEntityService.save(issue);
+        log.info("✅ Seal removal issue saved with ID: {}", saved.getId());
 
-        // Convert sang response
-        GetBasicIssueResponse response = issueMapper.toIssueBasicResponse(saved);
+        // Fetch full issue with all nested objects (vehicle, drivers, images)
+        GetBasicIssueResponse response = getBasicIssue(saved.getId());
 
         // 📢 Broadcast seal issue to staff
         log.info("🔓 Seal removal issue created, broadcasting to staff: {}", response.id());
@@ -760,7 +799,7 @@ public class IssueServiceImpl implements IssueService {
                 ));
         
         // Lấy tất cả issues rồi filter theo vehicle assignment và các điều kiện khác
-        List<IssueEntity> allIssues = issueEntityService.findAll();
+        List<IssueEntity> allIssues = issueEntityService.findAllSortedByReportedAtDesc();
         log.info("🔍 DEBUG: Total issues found: {}", allIssues.size());
         
         // Debug: Print all issues info
@@ -820,6 +859,132 @@ public class IssueServiceImpl implements IssueService {
         return pendingReplacements.stream()
                 .map(issueMapper::toIssueBasicResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public GetBasicIssueResponse reportDamageIssue(ReportDamageIssueRequest request) {
+        log.info("📦 Driver reporting damaged goods issue for {} order detail(s)", 
+                request.orderDetailIds() != null ? request.orderDetailIds().size() : 0);
+
+        // Lấy VehicleAssignment
+        var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + request.vehicleAssignmentId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Lấy IssueType (DAMAGE category)
+        var issueType = issueTypeEntityService.findEntityById(request.issueTypeId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + request.issueTypeId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate IssueType has DAMAGE category
+        if (!IssueCategoryEnum.DAMAGE.name().equals(issueType.getIssueCategory())) {
+            throw new IllegalStateException("Issue type must have DAMAGE category");
+        }
+
+        // Lưu trạng thái hiện tại của vehicle assignment (lấy từ order detail đầu tiên)
+        String tripStatusAtReport = null;
+        if (request.orderDetailIds() != null && !request.orderDetailIds().isEmpty()) {
+            var firstOrderDetail = orderDetailEntityService.findByTrackingCode(
+                    request.orderDetailIds().get(0)
+            );
+            tripStatusAtReport = firstOrderDetail.map(OrderDetailEntity::getStatus).orElse(null);
+        }
+        log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
+
+        // Tạo Issue trước
+        log.info("📍 Creating damage issue with location: lat={}, lng={}", 
+                request.locationLatitude(), request.locationLongitude());
+        
+        IssueEntity issue = IssueEntity.builder()
+                .description(request.description())
+                .locationLatitude(request.locationLatitude() != null ? 
+                                 java.math.BigDecimal.valueOf(request.locationLatitude()) : null)
+                .locationLongitude(request.locationLongitude() != null ? 
+                                  java.math.BigDecimal.valueOf(request.locationLongitude()) : null)
+                .status(IssueEnum.OPEN.name())
+                .reportedAt(java.time.LocalDateTime.now())
+                .tripStatusAtReport(tripStatusAtReport)
+                .vehicleAssignmentEntity(vehicleAssignment)
+                .staff(null)
+                .issueTypeEntity(issueType)
+                .build();
+
+        // Lưu issue
+        IssueEntity saved = issueEntityService.save(issue);
+        log.info("✅ Issue created with ID: {}", saved.getId());
+
+        // Update tất cả order details bị hư hại
+        if (request.orderDetailIds() != null && !request.orderDetailIds().isEmpty()) {
+            for (String trackingCode : request.orderDetailIds()) {
+                try {
+                    OrderDetailEntity orderDetail = orderDetailEntityService.findByTrackingCode(trackingCode)
+                            .orElseThrow(() -> new NotFoundException(
+                                    ErrorEnum.ORDER_DETAIL_NOT_FOUND.getMessage() + trackingCode,
+                                    ErrorEnum.ORDER_DETAIL_NOT_FOUND.getErrorCode()
+                            ));
+
+                    // Link order detail to issue
+                    String oldStatus = orderDetail.getStatus();
+                    orderDetail.setIssueEntity(saved);
+                    orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
+                    orderDetailEntityService.save(orderDetail);
+                    
+                    log.info("🚨 Updated order detail {} from {} to IN_TROUBLES and linked to issue {}", 
+                             orderDetail.getId(), oldStatus, saved.getId());
+                } catch (Exception e) {
+                    log.error("❌ Error updating order detail {}: {}", trackingCode, e.getMessage());
+                    throw new RuntimeException("Failed to update order detail: " + trackingCode, e);
+                }
+            }
+        }
+
+        // Upload damage images to Cloudinary and save to issue_images table
+        if (request.damageImages() != null && !request.damageImages().isEmpty()) {
+            for (MultipartFile imageFile : request.damageImages()) {
+                try {
+                    log.info("📤 Uploading damage image to Cloudinary...");
+                    // Don't add .jpg extension - Cloudinary will add it based on the file
+                    String imageUrl = cloudinaryService.uploadFile(imageFile.getBytes(), 
+                            "damage_" + System.currentTimeMillis(), 
+                            "damage_reports").get("secure_url").toString();
+                    
+                    // Check for double .jpg extension
+                    if (imageUrl.contains(".jpg.jpg")) {
+                        log.warn("⚠️ Double .jpg extension detected in URL: {}", imageUrl);
+                    } else {
+                        log.info("✅ Damage image uploaded (no double extension): {}", imageUrl);
+                    }
+
+                    // Save to issue_images table
+                    capstone_project.entity.issue.IssueImageEntity issueImage = 
+                        capstone_project.entity.issue.IssueImageEntity.builder()
+                            .imageUrl(imageUrl)
+                            .issueEntity(saved)
+                            .build();
+                    
+                    issueImageEntityService.save(issueImage);
+                    log.info("✅ Damage image saved to database");
+                    
+                } catch (Exception e) {
+                    log.error("❌ Error uploading damage image: {}", e.getMessage());
+                    throw new RuntimeException("Failed to upload damage image", e);
+                }
+            }
+        }
+
+        // Fetch full issue with all nested objects (vehicle, drivers, images)
+        GetBasicIssueResponse response = getBasicIssue(saved.getId());
+
+        // 📢 Broadcast damage issue to staff
+        log.info("📦 Damage issue created, broadcasting to staff: {}", response.id());
+        issueWebSocketService.broadcastNewIssue(response);
+
+        return response;
     }
 
 }

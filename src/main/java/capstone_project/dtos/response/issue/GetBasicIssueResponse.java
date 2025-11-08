@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record GetBasicIssueResponse (
@@ -31,6 +32,12 @@ public record GetBasicIssueResponse (
         GetSealResponse newSeal,
         String sealRemovalImage,
         String newSealAttachedImage,
-        LocalDateTime newSealConfirmedAt
+        LocalDateTime newSealConfirmedAt,
+        
+        // Damage issue specific fields (nullable for non-damage issues)
+        List<String> issueImages, // URLs of damage images
+        
+        // Order detail information (for damage issues)
+        OrderDetailForIssueResponse orderDetail
 ) {
 }

@@ -78,4 +78,11 @@ public interface IssueService {
      */
     List<GetBasicIssueResponse> getPendingSealReplacementsByVehicleAssignment(UUID vehicleAssignmentId);
 
+    /**
+     * Report damaged goods issue (Driver)
+     * @param request Report damage issue request
+     * @return Created issue
+     */
+    GetBasicIssueResponse reportDamageIssue(ReportDamageIssueRequest request);
+
 }

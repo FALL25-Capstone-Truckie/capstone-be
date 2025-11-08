@@ -31,6 +31,10 @@ public enum ErrorEnum {
     NEW_PASSWORD_MUST_BE_DIFFERENT_OLD_PASSWORD(21, "New password must be different from old password"),
     OLD_PASSWORD_IS_INCORRECT(22, "Old password is incorrect"),
     PASSWORD_CONFIRM_NOT_MATCH(23, "Password confirm not match"),
+    // ISSUE & REFUND BASED ERROR
+    ISSUE_NOT_FOUND(32, "Issue not found"),
+    ORDER_DETAIL_NOT_FOUND(33, "Order detail not found"),
+    REFUND_NOT_FOUND(34, "Refund not found"),
     ;
     private final String message;
     private final long errorCode;

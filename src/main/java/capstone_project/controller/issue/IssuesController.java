@@ -160,4 +160,32 @@ public class IssuesController {
         final var result = issueService.getPendingSealReplacementsByVehicleAssignment(vehicleAssignmentId);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
+
+    // ==================== DAMAGE REPORTING ENDPOINTS ====================
+
+    // Driver reports damaged goods issue
+    @PostMapping(value = "/damage", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<ApiResponse<GetBasicIssueResponse>> reportDamageIssue(
+            @RequestParam("vehicleAssignmentId") UUID vehicleAssignmentId,
+            @RequestParam("issueTypeId") UUID issueTypeId,
+            @RequestParam("orderDetailIds") List<String> orderDetailIds,
+            @RequestParam("description") String description,
+            @RequestParam(value = "locationLatitude", required = false) Double locationLatitude,
+            @RequestParam(value = "locationLongitude", required = false) Double locationLongitude,
+            @RequestParam("damageImages") List<MultipartFile> damageImages) {
+
+        ReportDamageIssueRequest request = new ReportDamageIssueRequest(
+                vehicleAssignmentId,
+                issueTypeId,
+                orderDetailIds,
+                description,
+                locationLatitude,
+                locationLongitude,
+                damageImages
+        );
+
+        final var result = issueService.reportDamageIssue(request);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }

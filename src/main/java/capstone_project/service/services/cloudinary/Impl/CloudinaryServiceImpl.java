@@ -23,23 +23,31 @@ public class CloudinaryServiceImpl implements CloudinaryService {
     @Override
     public Map<String, Object> uploadFile(byte[] file, String fileName, String folder) throws IOException {
         try {
-            // Determine resource type based on file extension
+            // Remove any existing extension from filename to prevent double extension
+            String cleanFileName = fileName;
+            int lastDotIndex = fileName.lastIndexOf('.');
+            if (lastDotIndex > 0) {
+                cleanFileName = fileName.substring(0, lastDotIndex);
+                log.info("Removed extension from filename: {} -> {}", fileName, cleanFileName);
+            }
+            
+            // Determine resource type based on original file extension
             String resourceType = "auto";
             String format = null;
             
             if (fileName.toLowerCase().endsWith(".pdf")) {
                 resourceType = "raw"; // Use 'raw' for PDFs to prevent conversion
                 format = "pdf";
-                log.info("Uploading PDF file: {} to folder: {}", fileName, folder);
+                log.info("Uploading PDF file: {} to folder: {}", cleanFileName, folder);
             } else if (fileName.toLowerCase().matches(".*\\.(jpg|jpeg|png|gif|webp|bmp)$")) {
                 resourceType = "image";
-                log.info("Uploading image file: {} to folder: {}", fileName, folder);
+                log.info("Uploading image file: {} to folder: {}", cleanFileName, folder);
             } else {
-                log.info("Uploading file with auto detection: {} to folder: {}", fileName, folder);
+                log.info("Uploading file with auto detection: {} to folder: {}", cleanFileName, folder);
             }
 
             Map<String, Object> params = ObjectUtils.asMap(
-                    "public_id", fileName,
+                    "public_id", cleanFileName,
                     "folder", folder,
                     "resource_type", resourceType,
                     "use_filename", true,
@@ -51,6 +59,7 @@ public class CloudinaryServiceImpl implements CloudinaryService {
             if (format != null) {
                 params.put("format", format);
             }
+            // For images, don't set format parameter to prevent Cloudinary from auto-adding extensions
 
             Map<String, Object> result = cloudinary.uploader().upload(file, params);
             log.info("Successfully uploaded file: {} with resource_type: {}", fileName, resourceType);

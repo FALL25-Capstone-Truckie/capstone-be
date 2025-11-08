@@ -7,6 +7,7 @@ import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.repository.entityServices.common.BaseEntityService;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface IssueEntityService extends BaseEntityService<IssueEntity, UUID> {
@@ -17,4 +18,8 @@ public interface IssueEntityService extends BaseEntityService<IssueEntity, UUID>
     List<IssueEntity> findByStatus(String status);
 
     List<IssueEntity> findByIssueTypeEntity(IssueTypeEntity issueType);
+
+    List<IssueEntity> findAllSortedByReportedAtDesc();
+
+    Optional<IssueEntity> findByIdWithDetails(UUID id);
 }

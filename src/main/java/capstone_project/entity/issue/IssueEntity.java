@@ -4,6 +4,7 @@ import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.order.order.SealEntity;
+import capstone_project.entity.order.order.OrderDetailEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -13,6 +14,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "issues", schema = "public", catalog = "capstone-project")
@@ -76,5 +78,9 @@ public class    IssueEntity extends BaseEntity {
 
     @Column(name = "new_seal_confirmed_at")
     private LocalDateTime newSealConfirmedAt; // Thời gian driver xác nhận gắn seal mới
+
+    // Order details affected by this issue (e.g., damaged goods)
+    @OneToMany(mappedBy = "issueEntity", fetch = FetchType.LAZY)
+    private List<OrderDetailEntity> orderDetails;
 
 }
