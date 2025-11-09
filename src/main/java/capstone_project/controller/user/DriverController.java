@@ -63,4 +63,11 @@ public class DriverController {
         final var drivers = driverService.generateBulkDrivers(request.getCount());
         return ResponseEntity.ok(ApiResponse.ok(drivers));
     }
+
+    @GetMapping("/validate-by-phone/{phoneNumber}")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<DriverResponse>> validateDriverByPhone(@PathVariable String phoneNumber) {
+        final var driver = driverService.validateDriverByPhone(phoneNumber);
+        return ResponseEntity.ok(ApiResponse.ok(driver));
+    }
 }

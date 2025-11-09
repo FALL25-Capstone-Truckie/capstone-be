@@ -9,20 +9,69 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 public interface IssueRepository extends BaseRepository<IssueEntity> {
     // Additional methods specific to IssueEntity can be defined here if needed
     IssueEntity findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentId);
 
-    List<IssueEntity> findByStaff(UserEntity staffId);
+    @Query("SELECT i FROM IssueEntity i " +
+            "LEFT JOIN FETCH i.issueTypeEntity " +
+            "LEFT JOIN FETCH i.staff " +
+            "LEFT JOIN FETCH i.vehicleAssignmentEntity " +
+            "WHERE i.staff = :staff " +
+            "ORDER BY i.reportedAt DESC")
+    List<IssueEntity> findByStaff(@Param("staff") UserEntity staffId);
 
     @Query("SELECT i FROM IssueEntity i " +
             "LEFT JOIN FETCH i.issueTypeEntity " +
             "LEFT JOIN FETCH i.staff " +
             "LEFT JOIN FETCH i.vehicleAssignmentEntity " +
-            "WHERE i.status = :status")
+            "WHERE i.status = :status " +
+            "ORDER BY i.reportedAt DESC")
     List<IssueEntity> findByStatus(@Param("status") String status);
 
+    @Query("SELECT i FROM IssueEntity i " +
+            "LEFT JOIN FETCH i.issueTypeEntity " +
+            "LEFT JOIN FETCH i.staff " +
+            "LEFT JOIN FETCH i.vehicleAssignmentEntity " +
+            "ORDER BY i.reportedAt DESC")
+    List<IssueEntity> findAllSortedByReportedAtDesc();
 
-    List<IssueEntity> findByIssueTypeEntity(IssueTypeEntity issueType);
+    @Query("SELECT DISTINCT i FROM IssueEntity i " +
+            "LEFT JOIN FETCH i.issueTypeEntity " +
+            "LEFT JOIN FETCH i.staff " +
+            "LEFT JOIN FETCH i.vehicleAssignmentEntity va " +
+            "LEFT JOIN FETCH va.vehicleEntity v " +
+            "LEFT JOIN FETCH v.vehicleTypeEntity " +
+            "WHERE i.id = :id")
+    Optional<IssueEntity> findByIdWithVehicle(@Param("id") UUID id);
+    
+    @Query("SELECT i FROM IssueEntity i " +
+            "LEFT JOIN FETCH i.vehicleAssignmentEntity va " +
+            "LEFT JOIN FETCH va.driver1 d1 " +
+            "LEFT JOIN FETCH d1.user " +
+            "WHERE i.id = :id")
+    Optional<IssueEntity> findByIdWithDriver1(@Param("id") UUID id);
+    
+    @Query("SELECT i FROM IssueEntity i " +
+            "LEFT JOIN FETCH i.vehicleAssignmentEntity va " +
+            "LEFT JOIN FETCH va.driver2 d2 " +
+            "LEFT JOIN FETCH d2.user " +
+            "WHERE i.id = :id")
+    Optional<IssueEntity> findByIdWithDriver2(@Param("id") UUID id);
+    
+    @Query("SELECT DISTINCT i FROM IssueEntity i " +
+            "LEFT JOIN FETCH i.orderDetails od " +
+            "WHERE i.id = :id")
+    Optional<IssueEntity> findByIdWithOrderDetail(@Param("id") UUID id);
+
+    @Query("SELECT i FROM IssueEntity i " +
+            "LEFT JOIN FETCH i.issueTypeEntity " +
+            "LEFT JOIN FETCH i.staff " +
+            "LEFT JOIN FETCH i.vehicleAssignmentEntity " +
+            "WHERE i.issueTypeEntity = :issueType " +
+            "ORDER BY i.reportedAt DESC")
+    List<IssueEntity> findByIssueTypeEntity(@Param("issueType") IssueTypeEntity issueType);
 }

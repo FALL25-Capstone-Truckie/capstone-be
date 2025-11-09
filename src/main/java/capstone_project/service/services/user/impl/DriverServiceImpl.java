@@ -16,6 +16,9 @@ import capstone_project.repository.entityServices.auth.RoleEntityService;
 import capstone_project.repository.entityServices.auth.UserEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleTypeEntityService;
+import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
+import capstone_project.common.enums.CommonStatusEnum;
+import capstone_project.common.exceptions.dto.NotFoundException;
 import capstone_project.service.mapper.user.DriverMapper;
 import capstone_project.service.services.user.DriverService;
 import capstone_project.service.services.user.PenaltyHistoryService;
@@ -46,7 +49,8 @@ public class DriverServiceImpl implements DriverService {
     private final UserContextUtils userContextUtils;
     private final RoleEntityService roleEntityService;
     private final PasswordEncoder passwordEncoder;
-    private final UserEntityService userEntityService; // Add UserEntityService
+    private final UserEntityService userEntityService;
+    private final VehicleAssignmentEntityService vehicleAssignmentEntityService;
 
     @Override
     public List<DriverResponse> getAllDrivers() {
@@ -379,5 +383,68 @@ public class DriverServiceImpl implements DriverService {
         }
 
         return highestNumber;
+    }
+
+    @Override
+    public DriverResponse validateDriverByPhone(String phoneNumber) {
+        log.info("Validating driver with phone number: {}", phoneNumber);
+        
+        // Validate phone number format
+        if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+            throw new BadRequestException(
+                "⚠️ Vui lòng nhập số điện thoại hợp lệ (ít nhất 10 số)",
+                ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        // Normalize phone number (remove spaces, dashes, etc.)
+        String normalizedPhone = phoneNumber.replaceAll("[\\s-()]", "");
+        
+        if (normalizedPhone.length() < 10) {
+            throw new BadRequestException(
+                "⚠️ Vui lòng nhập số điện thoại hợp lệ (ít nhất 10 số)",
+                ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        // Find driver by phone number
+        DriverEntity driver = driverEntityService.findByPhoneNumber(normalizedPhone)
+            .orElseThrow(() -> {
+                log.error("Driver not found with phone number: {}", phoneNumber);
+                return new NotFoundException(
+                    "❌ Không tìm thấy tài xế với số điện thoại này",
+                    ErrorEnum.NOT_FOUND.getErrorCode()
+                );
+            });
+        
+        // Check if driver is ACTIVE
+        if (!CommonStatusEnum.ACTIVE.name().equals(driver.getStatus())) {
+            log.error("Driver with phone {} is not ACTIVE, current status: {}", phoneNumber, driver.getStatus());
+            throw new BadRequestException(
+                "⚠️ Tài xế " + driver.getUser().getFullName() + " hiện không khả dụng (đã vô hiệu hóa)",
+                ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        // Check if driver already has an active assignment
+        if (vehicleAssignmentEntityService.existsActiveAssignmentForDriver(driver.getId())) {
+            log.error("Driver {} ({}) already has an active assignment", driver.getUser().getFullName(), phoneNumber);
+            throw new BadRequestException(
+                "⚠️ Tài xế " + driver.getUser().getFullName() + " đã được phân công cho chuyến khác, không thể chọn",
+                ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+        
+        log.info("Driver {} ({}) validated successfully for assignment", 
+            driver.getUser().getFullName(), phoneNumber);
+        
+        // Map driver entity to response
+        DriverResponse driverResponse = driverMapper.mapDriverResponse(driver);
+        
+        // Get penalty histories for this driver
+        List<PenaltyHistoryResponse> penaltyHistories = penaltyHistoryService.getByDriverId(driver.getId());
+        driverResponse.setPenaltyHistories(penaltyHistories);
+        
+        return driverResponse;
     }
 }

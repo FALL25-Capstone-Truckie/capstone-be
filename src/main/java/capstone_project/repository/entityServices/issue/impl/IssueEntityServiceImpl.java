@@ -35,6 +35,11 @@ public class IssueEntityServiceImpl implements IssueEntityService {
     }
 
     @Override
+    public List<IssueEntity> findAllSortedByReportedAtDesc() {
+        return issueRepository.findAllSortedByReportedAtDesc();
+    }
+
+    @Override
     public IssueEntity findByVehicleAssignmentEntity(VehicleAssignmentEntity vehicleAssignmentId) {
         return issueRepository.findByVehicleAssignmentEntity(vehicleAssignmentId);
     }
@@ -52,5 +57,24 @@ public class IssueEntityServiceImpl implements IssueEntityService {
     @Override
     public List<IssueEntity> findByIssueTypeEntity(IssueTypeEntity issueType) {
         return issueRepository.findByIssueTypeEntity(issueType);
+    }
+
+    @Override
+    public Optional<IssueEntity> findByIdWithDetails(UUID id) {
+        // Fetch with vehicle first
+        Optional<IssueEntity> issueOpt = issueRepository.findByIdWithVehicle(id);
+        if (issueOpt.isEmpty()) {
+            return Optional.empty();
+        }
+        
+        // Then fetch drivers separately to avoid MultipleBagFetchException
+        issueRepository.findByIdWithDriver1(id);
+        issueRepository.findByIdWithDriver2(id);
+        
+        // Fetch order detail
+        issueRepository.findByIdWithOrderDetail(id);
+        
+        // Return the issue (drivers and order detail are now loaded in session)
+        return issueOpt;
     }
 }

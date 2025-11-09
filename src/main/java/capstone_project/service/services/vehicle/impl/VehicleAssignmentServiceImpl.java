@@ -9,7 +9,7 @@ import capstone_project.dtos.response.user.DriverResponse;
 import capstone_project.dtos.response.vehicle.*;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.entity.order.order.*;
-import capstone_project.entity.pricing.VehicleTypeRuleEntity;
+import capstone_project.entity.pricing.SizeRuleEntity;
 import capstone_project.entity.user.address.AddressEntity;
 import capstone_project.entity.user.driver.DriverEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
@@ -19,7 +19,7 @@ import capstone_project.repository.entityServices.order.order.JourneyHistoryEnti
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.order.order.SealEntityService;
-import capstone_project.repository.entityServices.pricing.VehicleTypeRuleEntityService;
+import capstone_project.repository.entityServices.pricing.SizeRuleEntityService;
 import capstone_project.repository.entityServices.user.DriverEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleAssignmentEntityService;
 import capstone_project.repository.entityServices.vehicle.VehicleEntityService;
@@ -59,7 +59,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
     private final OrderDetailEntityService orderDetailEntityService;
     private final ContractEntityService contractEntityService;
     private final ContractRuleService contractRuleService;
-    private final VehicleTypeRuleEntityService vehicleTypeRuleEntityService;
+    private final SizeRuleEntityService sizeRuleEntityService;
     private final DriverService driverService;
     private final VehicleAssignmentMapper mapper;
     private final VehicleMapper vehicleMapper;
@@ -215,14 +215,14 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         }
 
         for (ContractRuleAssignResponse response : assignResult.vehicleAssignments()) {
-            UUID vehicleRuleId = response.getVehicleTypeRuleId();
-            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
+            UUID sizeRuleId = response.getSizeRuleId();
+            SizeRuleEntity sizeRule = sizeRuleEntityService.findEntityById(sizeRuleId)
                     .orElseThrow(() -> new NotFoundException(
-                            "Vehicle rule not found: " + vehicleRuleId,
+                            "Vehicle rule not found: " + sizeRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
-            VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(vehicleRule.getVehicleTypeEntity().getVehicleTypeName());
-            List<VehicleEntity> getVehiclesByVehicleType = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(vehicleRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
+            VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(sizeRule.getVehicleTypeEntity().getVehicleTypeName());
+            List<VehicleEntity> getVehiclesByVehicleType = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(sizeRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
             log.info("Tìm thấy {} xe ACTIVE cho loại {}", getVehiclesByVehicleType.size(), vehicleTypeEnum);
 
             // Lấy tất cả các tài xế hợp lệ cho loại xe này
@@ -673,19 +673,23 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     /**
      * Chuyển đổi kết quả từ assignVehicles sang định dạng OrderDetailGroup
-     * Giữ nguyên cấu trúc response như trước đây
+     * Enhanced to track and exclude already suggested resources across groups
      */
     private List<GroupedVehicleAssignmentResponse.OrderDetailGroup> convertAssignmentsToGroups(
             List<ContractRuleAssignResponse> assignments) {
 
         List<GroupedVehicleAssignmentResponse.OrderDetailGroup> groups = new ArrayList<>();
+        
+        // Track used resources across groups to avoid duplicate suggestions
+        Set<UUID> usedVehicleIds = new HashSet<>();
+        Set<UUID> usedDriverIds = new HashSet<>();
 
         for (ContractRuleAssignResponse assignment : assignments) {
             // Lấy thông tin về vehicle rule
-            UUID vehicleRuleId = assignment.getVehicleTypeRuleId();
-            VehicleTypeRuleEntity vehicleRule = vehicleTypeRuleEntityService.findEntityById(vehicleRuleId)
+            UUID sizeRuleId = assignment.getSizeRuleId();
+            SizeRuleEntity sizeRule = sizeRuleEntityService.findEntityById(sizeRuleId)
                     .orElseThrow(() -> new NotFoundException(
-                            "Vehicle rule not found: " + vehicleRuleId,
+                            "Vehicle rule not found: " + sizeRuleId,
                             ErrorEnum.NOT_FOUND.getErrorCode()
                     ));
 
@@ -698,9 +702,35 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             List<GroupedVehicleAssignmentResponse.OrderDetailInfo> detailInfos =
                     getOrderDetailInfos(detailIds);
 
+            // Pass excluded IDs to avoid duplicate suggestions
             List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions =
-                    findSuitableVehiclesForGroup(detailIds, vehicleRule, vehicleRule.getVehicleTypeEntity() != null
-                            ? vehicleRule.getVehicleTypeEntity().getId() : null);
+                    findSuitableVehiclesForGroup(
+                            detailIds, 
+                            sizeRule, 
+                            sizeRule.getVehicleTypeEntity() != null ? sizeRule.getVehicleTypeEntity().getId() : null,
+                            usedVehicleIds,
+                            usedDriverIds
+                    );
+            
+            // Collect used resources from top recommendation to exclude from next groups
+            if (!vehicleSuggestions.isEmpty()) {
+                GroupedVehicleAssignmentResponse.VehicleSuggestionResponse topVehicle = vehicleSuggestions.get(0);
+                
+                // Mark vehicle as used
+                usedVehicleIds.add(topVehicle.id());
+                
+                // Mark top 2 recommended drivers as used
+                topVehicle.suggestedDrivers().stream()
+                    .filter(GroupedVehicleAssignmentResponse.DriverSuggestionResponse::isRecommended)
+                    .limit(2)
+                    .forEach(d -> usedDriverIds.add(d.id()));
+                
+                log.debug("Group {}: Reserved vehicle {} and {} drivers for next groups", 
+                    groups.size() + 1, topVehicle.id(), 
+                    topVehicle.suggestedDrivers().stream()
+                        .filter(GroupedVehicleAssignmentResponse.DriverSuggestionResponse::isRecommended)
+                        .count());
+            }
 
             BigDecimal totalWeight = detailIds.stream()
                     .map(id -> orderDetailEntityService.findEntityById(id).orElse(null))
@@ -717,10 +747,10 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             } else {
                 groupingReason = String.format(
                         "Các đơn hàng được gộp tối ưu cho xe %s (%.1f/%.1f kg - %.1f%%)",
-                        vehicleRule.getVehicleTypeRuleName(),
+                        sizeRule.getSizeRuleName(),
                         totalWeight.doubleValue(),
-                        vehicleRule.getMaxWeight().doubleValue(),
-                        totalWeight.doubleValue() * 100 / vehicleRule.getMaxWeight().doubleValue()
+                        sizeRule.getMaxWeight().doubleValue(),
+                        totalWeight.doubleValue() * 100 / sizeRule.getMaxWeight().doubleValue()
                 );
             }
 
@@ -1208,25 +1238,38 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
     /**
      * Tìm xe và tài xế phù hợp cho nhóm order detail
+     * Enhanced to exclude already suggested resources from other groups
+     * 
      * @param detailIds Danh sách ID của order details
-     * @param vehicleRule Quy tắc về loại xe
+     * @param sizeRule Quy tắc về loại xe
+     * @param vehicleTypeId ID của loại xe
+     * @param excludedVehicleIds Set of vehicle IDs to exclude (already suggested for other groups)
+     * @param excludedDriverIds Set of driver IDs to exclude (already suggested for other groups)
      * @return Danh sách gợi ý xe và tài xế phù hợp cho nhóm
      */
     private List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> findSuitableVehiclesForGroup(
-            List<UUID> detailIds, VehicleTypeRuleEntity vehicleRule, UUID vehicleTypeId) {
+            List<UUID> detailIds, 
+            SizeRuleEntity sizeRule, 
+            UUID vehicleTypeId,
+            Set<UUID> excludedVehicleIds,
+            Set<UUID> excludedDriverIds) {
 
         List<GroupedVehicleAssignmentResponse.VehicleSuggestionResponse> vehicleSuggestions = new ArrayList<>();
 
         // Lấy danh sách xe phù hợp với loại xe từ rule
-        VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(vehicleRule.getVehicleTypeEntity().getVehicleTypeName());
+        VehicleTypeEnum vehicleTypeEnum = VehicleTypeEnum.valueOf(sizeRule.getVehicleTypeEntity().getVehicleTypeName());
         List<VehicleEntity> availableVehicles = vehicleEntityService.getVehicleEntitiesByVehicleTypeEntityAndStatus(
-                vehicleRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name());
+                sizeRule.getVehicleTypeEntity(), CommonStatusEnum.ACTIVE.name())
+                .stream()
+                .filter(v -> !excludedVehicleIds.contains(v.getId()))  // Exclude already suggested vehicles
+                .toList();
 
         // Lấy danh sách tài xế hợp lệ cho loại xe này
         List<DriverEntity> allEligibleDrivers = driverEntityService.findByStatus(CommonStatusEnum.ACTIVE.name())
                 .stream()
                 .filter(d -> driverService.isCheckClassDriverLicenseForVehicleType(d, vehicleTypeEnum))
                 .filter(d -> !entityService.existsActiveAssignmentForDriver(d.getId()))
+                .filter(d -> !excludedDriverIds.contains(d.getId()))  // Exclude already suggested drivers
                 .toList();
 
         // Sắp xếp xe theo mức độ sử dụng (ít dùng nhất lên đầu)
@@ -1234,7 +1277,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
         List<UUID> sortedVehicleIds = sortVehiclesByUsageThisMonth(vehicleIds);
 
         // Giới hạn số lượng xe gợi ý
-        final int MAX_VEHICLES_PER_GROUP = 3;
+        final int MAX_VEHICLES_PER_GROUP = 5;
         int vehicleCount = 0;
 
         for (UUID vehicleId : sortedVehicleIds) {
@@ -1267,7 +1310,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
 
                 String vehicleTypeName = vehicle.getVehicleTypeEntity() != null
                         ? vehicle.getVehicleTypeEntity().getVehicleTypeName()
-                        : vehicleRule.getVehicleTypeEntity().getVehicleTypeName();
+                        : sizeRule.getVehicleTypeEntity().getVehicleTypeName();
 
                 vehicleSuggestions.add(new GroupedVehicleAssignmentResponse.VehicleSuggestionResponse(
                         vehicle.getId(),
@@ -1295,7 +1338,7 @@ public class VehicleAssignmentServiceImpl implements VehicleAssignmentService {
             VehicleEntity vehicle, List<DriverEntity> allEligibleDrivers, VehicleTypeEnum vehicleTypeEnum) {
 
         List<DriverEntity> preferredDrivers = new ArrayList<>();
-        final int MAX_DRIVERS_PER_VEHICLE = 4;
+        final int MAX_DRIVERS_PER_VEHICLE = 6;
 
         // Collect last assignment drivers for this vehicle (preserve ordering)
         List<VehicleAssignmentEntity> pastAssignments = entityService.findAssignmentsByVehicleOrderByCreatedAtDesc(vehicle);

@@ -45,4 +45,9 @@ public class DriverEntityServiceImpl implements DriverEntityService {
     public List<DriverEntity> findByStatus(String status) {
         return driverRepository.findByStatus(status);
     }
+
+    @Override
+    public Optional<DriverEntity> findByPhoneNumber(String phoneNumber) {
+        return driverRepository.findByUserPhoneNumber(phoneNumber);
+    }
 }

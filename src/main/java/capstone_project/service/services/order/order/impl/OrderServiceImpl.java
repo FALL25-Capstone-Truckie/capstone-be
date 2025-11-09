@@ -266,19 +266,15 @@ public class OrderServiceImpl implements OrderService {
             case PROCESSING:
                 return next == OrderStatusEnum.CONTRACT_DRAFT;
             case CONTRACT_DRAFT:
-                return next == OrderStatusEnum.CONTRACT_DENIED || next == OrderStatusEnum.CONTRACT_SIGNED;
-            case CONTRACT_DENIED:
-                return next == OrderStatusEnum.CANCELLED;
+                return  next == OrderStatusEnum.CONTRACT_SIGNED;
             case CONTRACT_SIGNED:
-                return next == OrderStatusEnum.ON_PLANNING || next == OrderStatusEnum.FULLY_PAID;
+                return next == OrderStatusEnum.ON_PLANNING;
             case ON_PLANNING:
                 return next == OrderStatusEnum.ASSIGNED_TO_DRIVER;
             case ASSIGNED_TO_DRIVER:
-                return next == OrderStatusEnum.FULLY_PAID
-                        || next == OrderStatusEnum.PICKING_UP;
+                return next == OrderStatusEnum.FULLY_PAID;
             case FULLY_PAID:
                 return next == OrderStatusEnum.PICKING_UP
-                        || next == OrderStatusEnum.ON_DELIVERED
                         || next == OrderStatusEnum.IN_TROUBLES;
             case PICKING_UP:
                 return next == OrderStatusEnum.ON_DELIVERED
@@ -287,17 +283,16 @@ public class OrderServiceImpl implements OrderService {
             case ON_DELIVERED:
                 return next == OrderStatusEnum.ONGOING_DELIVERED || next == OrderStatusEnum.IN_TROUBLES;
             case ONGOING_DELIVERED:
-                return next == OrderStatusEnum.DELIVERED || next == OrderStatusEnum.IN_TROUBLES;
+                return next == OrderStatusEnum.DELIVERED || next == OrderStatusEnum.IN_TROUBLES || next == OrderStatusEnum.RETURNING;
             case IN_TROUBLES:
-                return next == OrderStatusEnum.RESOLVED;
-            case RESOLVED:
-                return next == OrderStatusEnum.COMPENSATION;
+                return next == OrderStatusEnum.FULLY_PAID ||  next == OrderStatusEnum.PICKING_UP || next == OrderStatusEnum.ON_DELIVERED ||  next == OrderStatusEnum.ONGOING_DELIVERED ||  next == OrderStatusEnum.DELIVERED || next == OrderStatusEnum.COMPENSATION
+                        || next == OrderStatusEnum.RETURNING;
             case DELIVERED:
-                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.REJECTED || next == OrderStatusEnum.IN_TROUBLES;
-            case REJECTED:
-                return next == OrderStatusEnum.RETURNING;
+                return next == OrderStatusEnum.SUCCESSFUL || next == OrderStatusEnum.IN_TROUBLES;
             case RETURNING:
-                return next == OrderStatusEnum.RETURNED;
+                return next == OrderStatusEnum.RETURNED || next == OrderStatusEnum.IN_TROUBLES;
+            case RETURNED, COMPENSATION:
+                return next == OrderStatusEnum.SUCCESSFUL;
         }
         return false;
     }
@@ -872,6 +867,78 @@ public class OrderServiceImpl implements OrderService {
 //        );
 
         return orderMapper.toCreateOrderResponse(updatedOrder);
+    }
+
+    @Override
+    @Transactional
+    public boolean cancelOrder(UUID orderId) {
+        log.info("Cancelling order {}", orderId);
+
+        // Validate order ID
+        if (orderId == null) {
+            throw new BadRequestException(
+                    "Order ID cannot be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Check if order can be cancelled
+        List<String> cancellableStatuses = Arrays.asList(
+                OrderStatusEnum.PENDING.name(),
+                OrderStatusEnum.PROCESSING.name(),
+                OrderStatusEnum.CONTRACT_DRAFT.name()
+        );
+
+        if (!cancellableStatuses.contains(order.getStatus())) {
+            throw new BadRequestException(
+                    String.format("Cannot cancel order. Current status is %s. Only PENDING, PROCESSING, and CONTRACT_DRAFT orders can be cancelled", 
+                            order.getStatus()),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Store previous status for WebSocket notification
+        OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
+
+        // Update status to CANCELLED
+        order.setStatus(OrderStatusEnum.CANCELLED.name());
+        orderEntityService.save(order);
+
+        // If there's a contract, update its status to CANCELLED
+        try {
+            Optional<ContractEntity> contractOpt = contractEntityService.getContractByOrderId(orderId);
+            if (contractOpt.isPresent()) {
+                ContractEntity contract = contractOpt.get();
+                contract.setStatus(ContractStatusEnum.CANCELLED.name());
+                contractEntityService.save(contract);
+                log.info("Contract {} for order {} marked as CANCELLED", contract.getId(), orderId);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to update contract status for cancelled order {}: {}", orderId, e.getMessage());
+        }
+
+        log.info("Successfully cancelled order {}", orderId);
+
+        // Send WebSocket notification
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                    orderId,
+                    order.getOrderCode(),
+                    previousStatus,
+                    OrderStatusEnum.CANCELLED
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for cancelled order {}: {}", orderId, e.getMessage());
+        }
+
+        return true;
     }
 
     /**

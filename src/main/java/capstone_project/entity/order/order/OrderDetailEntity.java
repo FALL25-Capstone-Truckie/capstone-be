@@ -2,6 +2,7 @@ package capstone_project.entity.order.order;
 
 import capstone_project.entity.common.BaseEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
+import capstone_project.entity.issue.IssueEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.*;
@@ -63,6 +64,11 @@ public class OrderDetailEntity extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_assignment_id")
     private VehicleAssignmentEntity vehicleAssignmentEntity;
+
+    // Link to issue if this order detail is damaged/has problem
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "issue_id")
+    private IssueEntity issueEntity;
 
 //    @ElementCollection
 //    @CollectionTable(

@@ -13,4 +13,11 @@ public interface DriverEntityService extends BaseEntityService<DriverEntity, UUI
     Optional<DriverEntity> findByUserId(UUID userId);
 
     List<DriverEntity> findByStatus(String status);
+    
+    /**
+     * Find driver by phone number
+     * @param phoneNumber Driver's phone number
+     * @return Optional containing driver entity if found
+     */
+    Optional<DriverEntity> findByPhoneNumber(String phoneNumber);
 }

@@ -213,4 +213,17 @@ public class OrderController {
         );
         return ResponseEntity.ok(ApiResponse.ok(true));
     }
+
+    /**
+     * Cancel an order
+     * Only allowed for orders with status PENDING, PROCESSING, or CONTRACT_DRAFT
+     * 
+     * @param orderId the order ID to cancel
+     * @return Success response
+     */
+    @PutMapping("/{orderId}/cancel")
+    public ResponseEntity<ApiResponse<Boolean>> cancelOrder(@PathVariable UUID orderId) {
+        final var result = orderService.cancelOrder(orderId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
 }
