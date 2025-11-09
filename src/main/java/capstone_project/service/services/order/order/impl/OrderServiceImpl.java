@@ -869,6 +869,78 @@ public class OrderServiceImpl implements OrderService {
         return orderMapper.toCreateOrderResponse(updatedOrder);
     }
 
+    @Override
+    @Transactional
+    public boolean cancelOrder(UUID orderId) {
+        log.info("Cancelling order {}", orderId);
+
+        // Validate order ID
+        if (orderId == null) {
+            throw new BadRequestException(
+                    "Order ID cannot be null",
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Find order
+        OrderEntity order = orderEntityService.findEntityById(orderId)
+                .orElseThrow(() -> new NotFoundException(
+                        "Order not found with ID: " + orderId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Check if order can be cancelled
+        List<String> cancellableStatuses = Arrays.asList(
+                OrderStatusEnum.PENDING.name(),
+                OrderStatusEnum.PROCESSING.name(),
+                OrderStatusEnum.CONTRACT_DRAFT.name()
+        );
+
+        if (!cancellableStatuses.contains(order.getStatus())) {
+            throw new BadRequestException(
+                    String.format("Cannot cancel order. Current status is %s. Only PENDING, PROCESSING, and CONTRACT_DRAFT orders can be cancelled", 
+                            order.getStatus()),
+                    ErrorEnum.INVALID_REQUEST.getErrorCode()
+            );
+        }
+
+        // Store previous status for WebSocket notification
+        OrderStatusEnum previousStatus = OrderStatusEnum.valueOf(order.getStatus());
+
+        // Update status to CANCELLED
+        order.setStatus(OrderStatusEnum.CANCELLED.name());
+        orderEntityService.save(order);
+
+        // If there's a contract, update its status to CANCELLED
+        try {
+            Optional<ContractEntity> contractOpt = contractEntityService.getContractByOrderId(orderId);
+            if (contractOpt.isPresent()) {
+                ContractEntity contract = contractOpt.get();
+                contract.setStatus(ContractStatusEnum.CANCELLED.name());
+                contractEntityService.save(contract);
+                log.info("Contract {} for order {} marked as CANCELLED", contract.getId(), orderId);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to update contract status for cancelled order {}: {}", orderId, e.getMessage());
+        }
+
+        log.info("Successfully cancelled order {}", orderId);
+
+        // Send WebSocket notification
+        try {
+            orderStatusWebSocketService.sendOrderStatusChange(
+                    orderId,
+                    order.getOrderCode(),
+                    previousStatus,
+                    OrderStatusEnum.CANCELLED
+            );
+        } catch (Exception e) {
+            log.error("Failed to send WebSocket notification for cancelled order {}: {}", orderId, e.getMessage());
+        }
+
+        return true;
+    }
+
     /**
      * Helper method to process vehicle assignments for order details
      * Extracts issue images and photo completions for each vehicle assignment

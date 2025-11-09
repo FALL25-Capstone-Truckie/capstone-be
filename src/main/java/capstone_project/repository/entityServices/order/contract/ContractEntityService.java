@@ -3,6 +3,8 @@ package capstone_project.repository.entityServices.order.contract;
 import capstone_project.entity.order.contract.ContractEntity;
 import capstone_project.repository.entityServices.common.BaseEntityService;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,4 +12,10 @@ public interface ContractEntityService extends BaseEntityService<ContractEntity,
     Optional<ContractEntity> getContractByOrderId(UUID orderId);
 
     void deleteContractByOrderId(UUID orderId);
+
+    List<ContractEntity> findByStatusAndSigningDeadlineBefore(String status, LocalDateTime deadline);
+
+    List<ContractEntity> findByStatusAndDepositPaymentDeadlineBefore(String status, LocalDateTime deadline);
+
+    List<ContractEntity> findByStatusAndFullPaymentDeadlineBefore(String status, LocalDateTime deadline);
 }

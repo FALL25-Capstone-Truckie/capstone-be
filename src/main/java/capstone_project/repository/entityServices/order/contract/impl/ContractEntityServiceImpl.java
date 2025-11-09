@@ -6,6 +6,7 @@ import capstone_project.repository.entityServices.order.contract.ContractEntityS
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,5 +40,20 @@ public class ContractEntityServiceImpl implements ContractEntityService {
     @Override
     public void deleteContractByOrderId(UUID orderId) {
         contractRepository.deleteByOrderEntityId(orderId);
+    }
+
+    @Override
+    public List<ContractEntity> findByStatusAndSigningDeadlineBefore(String status, LocalDateTime deadline) {
+        return contractRepository.findByStatusAndSigningDeadlineBefore(status, deadline);
+    }
+
+    @Override
+    public List<ContractEntity> findByStatusAndDepositPaymentDeadlineBefore(String status, LocalDateTime deadline) {
+        return contractRepository.findByStatusAndDepositPaymentDeadlineBefore(status, deadline);
+    }
+
+    @Override
+    public List<ContractEntity> findByStatusAndFullPaymentDeadlineBefore(String status, LocalDateTime deadline) {
+        return contractRepository.findByStatusAndFullPaymentDeadlineBefore(status, deadline);
     }
 }

@@ -189,6 +189,9 @@ public class ContractServiceImpl implements ContractService {
         ContractEntity contractEntity = contractMapper.mapRequestToEntity(contractRequest);
         contractEntity.setStatus(ContractStatusEnum.CONTRACT_DRAFT.name());
         contractEntity.setOrderEntity(order);
+        
+        // Set contract deadlines
+        setContractDeadlines(contractEntity, order);
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
 
@@ -235,7 +238,7 @@ public class ContractServiceImpl implements ContractService {
 
             contractRuleEntityService.save(contractRule);
         }
-        order.setStatus(OrderStatusEnum.CONTRACT_DRAFT.name());
+        order.setStatus(OrderStatusEnum.PROCESSING.name());
         orderEntityService.save(order);
 
         PriceCalculationResponse totalPriceResponse = calculateTotalPrice(savedContract, distanceKm, vehicleCountMap);
@@ -294,6 +297,9 @@ public class ContractServiceImpl implements ContractService {
         ContractEntity contractEntity = contractMapper.mapRequestForCusToEntity(contractRequest);
         contractEntity.setStatus(ContractStatusEnum.CONTRACT_DRAFT.name());
         contractEntity.setOrderEntity(order);
+        
+        // Set contract deadlines
+        setContractDeadlines(contractEntity, order);
 
         ContractEntity savedContract = contractEntityService.save(contractEntity);
 
@@ -1015,7 +1021,13 @@ public class ContractServiceImpl implements ContractService {
         ce.setExpirationDate(req.expirationDate());
         ce.setAdjustedValue(req.adjustedValue());
         ce.setContractName(req.contractName());
-
+        
+        // Set staff user ID from current authenticated user
+        UUID staffUserId = userContextUtils.getCurrentUserId();
+        UserEntity staffUser = new UserEntity();
+        staffUser.setId(staffUserId);
+        ce.setStaff(staffUser);
+        log.info("Set staff user ID for contract: {}", staffUserId);
 
         var updated = contractEntityService.save(ce);
 
@@ -1055,5 +1067,38 @@ public class ContractServiceImpl implements ContractService {
                         ErrorEnum.NOT_FOUND.getErrorCode()
                 ));
         return contractMapper.toContractResponse(contractEntity);
+    }
+
+    /**
+     * Set contract deadlines based on order details
+     * Reasonable deadlines for Vietnamese logistics:
+     * - Contract signing: 24 hours after contract draft creation
+     * - Deposit payment: 48 hours after contract signing
+     * - Full payment: 1 day before pickup time (earliest estimated start time)
+     */
+    private void setContractDeadlines(ContractEntity contract, OrderEntity order) {
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        
+        // Signing deadline: 24 hours from contract creation
+        contract.setSigningDeadline(now.plusHours(24));
+        
+        // Deposit payment deadline: 48 hours after signing (72 hours from creation)
+        contract.setDepositPaymentDeadline(now.plusHours(72));
+        
+        // Full payment deadline: 1 day before pickup time
+        // Get the earliest estimated start time from order details
+        java.time.LocalDateTime earliestPickupTime = order.getOrderDetailEntities().stream()
+                .map(OrderDetailEntity::getEstimatedStartTime)
+                .filter(time -> time != null)
+                .min(java.time.LocalDateTime::compareTo)
+                .orElse(now.plusDays(7)); // Default to 7 days if no estimated time
+        
+        // Set deadline to 1 day before pickup time
+        contract.setFullPaymentDeadline(earliestPickupTime.minusDays(1));
+        
+        log.info("Set contract deadlines - Signing: {}, Deposit: {}, Full Payment: {} (1 day before pickup)",
+                contract.getSigningDeadline(),
+                contract.getDepositPaymentDeadline(),
+                contract.getFullPaymentDeadline());
     }
 }

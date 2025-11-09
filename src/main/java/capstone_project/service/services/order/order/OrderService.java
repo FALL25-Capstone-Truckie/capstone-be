@@ -88,4 +88,13 @@ public interface OrderService {
     GetOrderByJpaResponse getSimplifiedOrderForCustomerV2ByOrderId(UUID orderId);
 
     OrderForDriverResponse getOrderForDriverByOrderId(UUID orderId);
+
+    /**
+     * Cancel an order
+     * Only allowed for orders with status PENDING, PROCESSING, or CONTRACT_DRAFT
+     * 
+     * @param orderId the order ID to cancel
+     * @return success status
+     */
+    boolean cancelOrder(UUID orderId);
 }

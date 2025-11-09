@@ -25,4 +25,13 @@ public interface DriverService {
     boolean isCheckClassDriverLicenseForVehicleType(DriverEntity driver, VehicleTypeEnum vehicleType);
 
     List<DriverResponse> generateBulkDrivers(Integer count);
+    
+    /**
+     * Validate driver eligibility by phone number
+     * Checks if driver exists, is active, and not currently assigned
+     * 
+     * @param phoneNumber Driver's phone number
+     * @return Driver information if eligible
+     */
+    DriverResponse validateDriverByPhone(String phoneNumber);
 }

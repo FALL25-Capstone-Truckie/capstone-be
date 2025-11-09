@@ -30,6 +30,15 @@ public class ContractEntity extends BaseEntity {
     @Column(name = "expiration_date")
     private LocalDateTime expirationDate;
 
+    @Column(name = "signing_deadline")
+    private LocalDateTime signingDeadline;
+
+    @Column(name = "deposit_payment_deadline")
+    private LocalDateTime depositPaymentDeadline;
+
+    @Column(name = "full_payment_deadline")
+    private LocalDateTime fullPaymentDeadline;
+
     @Column(name = "total_value")
     private BigDecimal totalValue;
 

@@ -37,18 +37,36 @@ public class StompConnectChannelInterceptor implements ChannelInterceptor {
                     if (jwtTokenProvider.validateToken(token)) {
                         // Get the username from token using the available method
                         String username = jwtTokenProvider.getUsernameFromToken(token);
+                        String role = jwtTokenProvider.getRoleFromToken(token);
 
                         if (username != null) {
-                            // Create a simple Authentication object with the username
+                            // Check if connecting to issue WebSocket endpoints
+                            String destination = accessor.getDestination();
+                            if (destination != null && 
+                                (destination.contains("/topic/issues/") || destination.contains("/app/issue/"))) {
+                                
+                                // Only allow STAFF role for issue endpoints
+                                if (!"STAFF".equals(role)) {
+                                    log.warn("❌ User {} with role {} attempted to connect to issue WebSocket endpoint: {}", 
+                                            username, role, destination);
+                                    throw new IllegalArgumentException("Only STAFF role can access issue WebSocket endpoints");
+                                }
+                                log.debug("✅ Staff user {} authenticated for issue WebSocket: {}", username, destination);
+                            }
+
+                            // Create a simple Authentication object with the username and role
                             Authentication auth = new UsernamePasswordAuthenticationToken(
                                     username,
                                     null,
-                                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+                                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + (role != null ? role : "USER")))
                             );
                             accessor.setUser(auth);
-                            log.debug("Set Authentication from STOMP CONNECT Authorization header for user: {}", username);
+                            log.debug("Set Authentication from STOMP CONNECT Authorization header for user: {} with role: {}", username, role);
                         }
                     }
+                } catch (IllegalArgumentException e) {
+                    // Re-throw authorization errors
+                    throw e;
                 } catch (Exception e) {
                     log.warn("Failed to process Authentication from STOMP header", e);
                 }
