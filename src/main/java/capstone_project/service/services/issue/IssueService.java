@@ -3,6 +3,7 @@ package capstone_project.service.services.issue;
 import capstone_project.dtos.request.issue.*;
 import capstone_project.dtos.response.issue.GetBasicIssueResponse;
 import capstone_project.dtos.response.issue.GetIssueTypeResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +35,14 @@ public interface IssueService {
      * @return Updated issue
      */
     GetBasicIssueResponse resolveIssue(UUID issueId);
+
+    /**
+     * Update issue status directly (for PENALTY and other simple issues)
+     * @param issueId Issue ID
+     * @param status New status (OPEN, IN_PROGRESS, RESOLVED)
+     * @return Updated issue
+     */
+    GetBasicIssueResponse updateIssueStatus(UUID issueId, String status);
 
     /**
      * Report seal removal issue (Driver)
@@ -84,5 +93,63 @@ public interface IssueService {
      * @return Created issue
      */
     GetBasicIssueResponse reportDamageIssue(ReportDamageIssueRequest request);
+
+    /**
+     * Report traffic penalty violation issue (Driver)
+     * @param vehicleAssignmentId Vehicle assignment ID
+     * @param issueTypeId Issue type ID
+     * @param violationType Type of traffic violation
+     * @param violationImage Traffic violation record image
+     * @param locationLatitude Location latitude
+     * @param locationLongitude Location longitude
+     * @return Created issue
+     */
+    GetBasicIssueResponse reportPenaltyIssue(
+            UUID vehicleAssignmentId,
+            UUID issueTypeId,
+            String violationType,
+            MultipartFile violationImage,
+            Double locationLatitude,
+            Double locationLongitude
+    );
+
+    // ===== ORDER_REJECTION flow methods =====
+
+    /**
+     * Report order rejection by recipient (Driver)
+     * @param request Report order rejection request
+     * @return Created issue
+     */
+    GetBasicIssueResponse reportOrderRejection(capstone_project.dtos.request.issue.ReportOrderRejectionRequest request);
+
+    /**
+     * Calculate return shipping fee for ORDER_REJECTION issue (Staff/Customer)
+     * @param issueId Issue ID
+     * @return Return shipping fee details
+     */
+    capstone_project.dtos.response.issue.ReturnShippingFeeResponse calculateReturnShippingFee(UUID issueId);
+
+    /**
+     * Process ORDER_REJECTION issue: create transaction, set up new route (Staff)
+     * @param request Process order rejection request
+     * @return Order rejection detail
+     */
+    capstone_project.dtos.response.issue.OrderRejectionDetailResponse processOrderRejection(
+            capstone_project.dtos.request.issue.ProcessOrderRejectionRequest request
+    );
+
+    /**
+     * Get ORDER_REJECTION issue detail (Staff/Customer)
+     * @param issueId Issue ID
+     * @return Order rejection detail
+     */
+    capstone_project.dtos.response.issue.OrderRejectionDetailResponse getOrderRejectionDetail(UUID issueId);
+
+    /**
+     * Confirm return delivery at pickup location (Driver)
+     * @param request Confirm return delivery request
+     * @return Updated issue
+     */
+    GetBasicIssueResponse confirmReturnDelivery(capstone_project.dtos.request.issue.ConfirmReturnDeliveryRequest request);
 
 }

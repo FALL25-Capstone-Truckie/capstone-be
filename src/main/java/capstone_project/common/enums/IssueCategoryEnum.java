@@ -6,6 +6,7 @@ package capstone_project.common.enums;
  */
 public enum IssueCategoryEnum {
     DAMAGE,
+    PENALTY,
     MISSING_ITEMS,
     WRONG_ITEMS,
     GENERAL,

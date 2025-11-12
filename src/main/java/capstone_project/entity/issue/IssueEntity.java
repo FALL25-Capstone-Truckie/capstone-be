@@ -5,6 +5,8 @@ import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.vehicle.VehicleAssignmentEntity;
 import capstone_project.entity.order.order.SealEntity;
 import capstone_project.entity.order.order.OrderDetailEntity;
+import capstone_project.entity.order.order.JourneyHistoryEntity;
+import capstone_project.entity.order.transaction.TransactionEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -62,25 +64,46 @@ public class    IssueEntity extends BaseEntity {
     // Seal replacement fields
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "old_seal_id")
-    private SealEntity oldSeal; // Seal bị gỡ
+    private SealEntity oldSeal;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "new_seal_id")
-    private SealEntity newSeal; // Seal thay thế
+    private SealEntity newSeal;
 
     @Size(max = 500)
     @Column(name = "seal_removal_image", length = 500)
-    private String sealRemovalImage; // Ảnh seal cũ bị gỡ
+    private String sealRemovalImage;
 
     @Size(max = 500)
     @Column(name = "new_seal_attached_image", length = 500)
-    private String newSealAttachedImage; // Ảnh seal mới được gắn
+    private String newSealAttachedImage;
 
     @Column(name = "new_seal_confirmed_at")
-    private LocalDateTime newSealConfirmedAt; // Thời gian driver xác nhận gắn seal mới
+    private LocalDateTime newSealConfirmedAt;
 
-    // Order details affected by this issue (e.g., damaged goods)
     @OneToMany(mappedBy = "issueEntity", fetch = FetchType.LAZY)
     private List<OrderDetailEntity> orderDetails;
+
+    @OneToMany(mappedBy = "issueEntity", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private List<IssueImageEntity> issueImages;
+
+    // ===== ORDER_REJECTION specific fields =====
+    
+    @Column(name = "return_shipping_fee", precision = 19, scale = 2)
+    private BigDecimal returnShippingFee; 
+    
+    @Column(name = "adjusted_return_fee", precision = 19, scale = 2)
+    private BigDecimal adjustedReturnFee; 
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "return_transaction_id")
+    private TransactionEntity returnTransaction;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "return_journey_id")
+    private JourneyHistoryEntity returnJourney; 
+    
+    @Column(name = "payment_deadline")
+    private LocalDateTime paymentDeadline; 
 
 }

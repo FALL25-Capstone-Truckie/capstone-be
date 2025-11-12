@@ -68,12 +68,12 @@ public class AuthsController {
         log.info("[refreshAccessToken] Extracted refresh token from cookies: {}...", refreshToken.substring(0, Math.min(20, refreshToken.length())));
 
         final var refreshTokenResponse = registerService.refreshAccessToken(refreshToken);
-        log.info("[refreshAccessToken] Got new access token from service");
+        log.info("[refreshAccessToken] Got new tokens from service (token rotation)");
 
-        // NO NEED to set refresh token cookie again since we're keeping the same token
-        // This prevents cookie sync issues on page reload
-        // The existing refresh token cookie is still valid and will continue to work
-        log.info("[refreshAccessToken] Keeping existing refresh token cookie (no rotation)");
+        // IMPORTANT: Set new refresh token cookie after token rotation
+        // This ensures the client always has the latest valid refresh token
+        registerService.addRefreshTokenCookie(response, refreshTokenResponse.getRefreshToken());
+        log.info("[refreshAccessToken] New refresh token cookie set (token rotation completed)");
 
         // Return ONLY access token in body
         var accessTokenResponse = AccessTokenResponse.builder()

@@ -48,6 +48,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
     private final UserEntityService userEntityService;
     private final ContractSettingEntityService contractSettingEntityService;
     private final ObjectProvider<OrderService> orderServiceObjectProvider;
+    
+    // ORDER_REJECTION dependencies
+    private final capstone_project.repository.entityServices.issue.IssueEntityService issueEntityService;
+    private final capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService;
+    private final capstone_project.service.services.websocket.IssueWebSocketService issueWebSocketService;
 
     private final PayOSProperties properties;
     private final PayOS payOS;
@@ -392,6 +397,11 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
                 log.info("Webhook processed successfully. TxnId={}, PayOS status={}, Mapped status={}",
                         transaction.getId(), payOsStatus, mappedStatus);
 
+                // Check if this is a return shipping payment (ORDER_REJECTION)
+                if (TransactionEnum.PAID.equals(mappedStatus)) {
+                    handleReturnShippingPayment(transaction);
+                }
+
                 updateContractStatusIfNeeded(transaction);
             }, () -> {
                 log.warn("Transaction not found for orderCode {}", orderCode);
@@ -592,6 +602,73 @@ public class PayOSTransactionServiceImpl implements PayOSTransactionService {
         } catch (Exception e) {
             log.error("Error refunding transaction {}", transactionId, e);
             throw new RuntimeException("Failed to refund transaction", e);
+        }
+    }
+
+    /**
+     * Handle return shipping payment for ORDER_REJECTION issues
+     * When customer pays, activate the return journey and notify driver
+     */
+    private void handleReturnShippingPayment(TransactionEntity transaction) {
+        try {
+            log.info("🔍 Checking if transaction {} is for return shipping...", transaction.getId());
+            
+            // Find issue that has this transaction as return transaction
+            java.util.List<capstone_project.entity.issue.IssueEntity> issues = 
+                    issueEntityService.findAll().stream()
+                    .filter(issue -> issue.getReturnTransaction() != null 
+                            && issue.getReturnTransaction().getId().equals(transaction.getId()))
+                    .toList();
+            
+            if (issues.isEmpty()) {
+                log.debug("Transaction {} is not for return shipping", transaction.getId());
+                return;
+            }
+            
+            capstone_project.entity.issue.IssueEntity issue = issues.get(0);
+            log.info("✅ Found ORDER_REJECTION issue {} with return payment", issue.getId());
+            
+            // Activate return journey
+            if (issue.getReturnJourney() != null) {
+                var journey = issue.getReturnJourney();
+                journey.setStatus(CommonStatusEnum.ACTIVE.name());
+                journeyHistoryEntityService.save(journey);
+                log.info("🛣️ Activated return journey: {}", journey.getId());
+            }
+            
+            // Update issue status to RESOLVED (customer paid, driver can proceed with return)
+            issue.setStatus(IssueEnum.RESOLVED.name());
+            issue.setResolvedAt(java.time.LocalDateTime.now());
+            issueEntityService.save(issue);
+            log.info("✅ Issue {} status updated to RESOLVED", issue.getId());
+            
+            // Send WebSocket notification to driver
+            try {
+                var vehicleAssignment = issue.getVehicleAssignmentEntity();
+                if (vehicleAssignment != null && vehicleAssignment.getDriver1() != null) {
+                    UUID driverId = vehicleAssignment.getDriver1().getUser().getId();
+                    UUID returnJourneyId = issue.getReturnJourney() != null 
+                            ? issue.getReturnJourney().getId() 
+                            : null;
+                    
+                    // Send via WebSocket
+                    issueWebSocketService.sendReturnPaymentSuccessNotification(
+                            driverId,
+                            issue.getId(),
+                            vehicleAssignment.getId(),
+                            returnJourneyId
+                    );
+                    
+                    log.info("📢 Sent return payment success notification to driver: {}", driverId);
+                }
+            } catch (Exception e) {
+                log.error("❌ Failed to send driver notification: {}", e.getMessage(), e);
+                // Don't throw - notification failure shouldn't break payment processing
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ Error handling return shipping payment: {}", e.getMessage(), e);
+            // Don't throw - payment is already processed, this is just bonus logic
         }
     }
 }

@@ -2,6 +2,7 @@ package capstone_project.dtos.response.issue;
 
 import capstone_project.common.enums.IssueCategoryEnum;
 import capstone_project.dtos.response.order.seal.GetSealResponse;
+import capstone_project.dtos.response.user.CustomerResponse;
 import capstone_project.dtos.response.vehicle.VehicleAssignmentResponse;
 import capstone_project.entity.auth.UserEntity;
 import capstone_project.entity.issue.IssueTypeEntity;
@@ -38,6 +39,9 @@ public record GetBasicIssueResponse (
         List<String> issueImages, // URLs of damage images
         
         // Order detail information (for damage issues)
-        OrderDetailForIssueResponse orderDetail
+        OrderDetailForIssueResponse orderDetail,
+        
+        // Sender/Customer information (for damage and order rejection issues)
+        CustomerResponse sender
 ) {
 }

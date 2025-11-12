@@ -4,7 +4,11 @@ import capstone_project.common.enums.ErrorEnum;
 import capstone_project.common.enums.IssueEnum;
 import capstone_project.common.enums.IssueCategoryEnum;
 import capstone_project.common.enums.OrderDetailStatusEnum;
+import capstone_project.common.exceptions.dto.BadRequestException;
 import capstone_project.common.exceptions.dto.NotFoundException;
+import capstone_project.dtos.response.order.contract.PriceCalculationResponse;
+import capstone_project.entity.issue.IssueImageEntity;
+import capstone_project.entity.issue.IssueTypeEntity;
 import capstone_project.service.services.websocket.IssueWebSocketService;
 import capstone_project.dtos.request.issue.*;
 import capstone_project.dtos.response.issue.GetBasicIssueResponse;
@@ -47,6 +51,14 @@ public class IssueServiceImpl implements IssueService {
     private final CloudinaryService cloudinaryService;
     private final SealMapper sealMapper;
     private final capstone_project.repository.entityServices.issue.IssueImageEntityService issueImageEntityService;
+    
+    // ORDER_REJECTION dependencies
+    private final capstone_project.service.services.order.order.ContractService contractService;
+    private final capstone_project.repository.entityServices.order.order.OrderEntityService orderEntityService;
+    private final capstone_project.repository.entityServices.order.contract.ContractEntityService contractEntityService;
+    private final capstone_project.repository.entityServices.user.CustomerEntityService customerEntityService;
+    private final capstone_project.repository.entityServices.order.transaction.TransactionEntityService transactionEntityService;
+    private final capstone_project.repository.entityServices.order.order.JourneyHistoryEntityService journeyHistoryEntityService;
 
 
     @Override
@@ -92,7 +104,8 @@ public class IssueServiceImpl implements IssueService {
                 response.newSealAttachedImage(),
                 response.newSealConfirmedAt(),
                 issueImages,
-                response.orderDetail()
+                response.orderDetail(),
+                response.sender()
             );
         }
         
@@ -115,7 +128,8 @@ public class IssueServiceImpl implements IssueService {
             response.newSealAttachedImage(),
             response.newSealConfirmedAt(),
             issueImages,
-            response.orderDetail()
+            response.orderDetail(),
+            response.sender()
         );
     }
     
@@ -419,6 +433,66 @@ public class IssueServiceImpl implements IssueService {
         log.info("✅ Issue resolved, broadcasting: {}", response.id());
         issueWebSocketService.broadcastIssueStatusChange(response);
         
+        // 📲 Send notification to driver if this is a DAMAGE issue
+        if (issue.getIssueTypeEntity() != null && 
+            IssueCategoryEnum.DAMAGE.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            
+            if (issue.getVehicleAssignmentEntity() != null) {
+                var driver1 = issue.getVehicleAssignmentEntity().getDriver1();
+                if (driver1 != null && driver1.getUser() != null) {
+                    String staffName = issue.getStaff() != null ? 
+                                      issue.getStaff().getFullName() : "Nhân viên";
+                    
+                    log.info("📦 Sending damage resolved notification to driver: {}", driver1.getUser().getId());
+                    issueWebSocketService.sendDamageResolvedNotification(
+                        driver1.getUser().getId().toString(),
+                        response,
+                        staffName
+                    );
+                }
+            }
+        }
+        
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public GetBasicIssueResponse updateIssueStatus(UUID issueId, String status) {
+        log.info("🔄 Updating issue status: issueId={}, newStatus={}", issueId, status);
+
+        // Validate status
+        try {
+            IssueEnum.valueOf(status);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid issue status: " + status);
+        }
+
+        // Find issue
+        IssueEntity issue = issueEntityService.findEntityById(issueId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.ISSUE_NOT_FOUND.getMessage() + " Issue ID: " + issueId,
+                        ErrorEnum.ISSUE_NOT_FOUND.getErrorCode()
+                ));
+
+        String oldStatus = issue.getStatus();
+        
+        // Update status
+        issue.setStatus(status);
+        
+        // Set resolvedAt if status is RESOLVED
+        if (IssueEnum.RESOLVED.name().equals(status)) {
+            issue.setResolvedAt(java.time.LocalDateTime.now());
+            log.info("✅ Issue marked as RESOLVED at {}", issue.getResolvedAt());
+        }
+
+        IssueEntity updated = issueEntityService.save(issue);
+        GetBasicIssueResponse response = getBasicIssue(updated.getId());
+
+        // Broadcast status change
+        log.info("📢 Issue status changed from {} to {}, broadcasting", oldStatus, status);
+        issueWebSocketService.broadcastIssueStatusChange(response);
+
         return response;
     }
 
@@ -731,6 +805,38 @@ public class IssueServiceImpl implements IssueService {
         log.info("✅ Seal replacement completed, broadcasting: {}", response.id());
         issueWebSocketService.broadcastIssueStatusChange(response);
 
+        // 📲 Send confirmation message to staff who assigned the seal
+        if (issue.getStaff() != null && issue.getVehicleAssignmentEntity() != null) {
+            var driver1 = issue.getVehicleAssignmentEntity().getDriver1();
+            if (driver1 != null) {
+                String staffId = issue.getStaff().getId().toString();
+                String driverName = driver1.getUser() != null ? 
+                                  driver1.getUser().getFullName() : "Driver";
+                String newSealCode = newSeal.getSealCode();
+                String oldSealCode = oldSeal.getSealCode();
+                String sealImageUrl = newSeal.getSealAttachedImage();
+                String oldSealImageUrl = issue.getSealRemovalImage();
+                String vehicleAssignmentId = issue.getVehicleAssignmentEntity().getId().toString();
+                
+                // Create journey code from vehicle assignment tracking code
+                String journeyCode = issue.getVehicleAssignmentEntity().getTrackingCode() != null ?
+                        issue.getVehicleAssignmentEntity().getTrackingCode() :
+                        "Chuyến #" + vehicleAssignmentId.substring(0, 8);
+                
+                log.info("📲 Sending seal confirmation message to staff: {}", staffId);
+                issueWebSocketService.sendSealConfirmationMessageToStaff(
+                    staffId,
+                    driverName,
+                    newSealCode,
+                    oldSealCode,
+                    sealImageUrl,
+                    oldSealImageUrl,
+                    vehicleAssignmentId,
+                    journeyCode
+                );
+            }
+        }
+
         return response;
     }
 
@@ -964,6 +1070,7 @@ public class IssueServiceImpl implements IssueService {
                     capstone_project.entity.issue.IssueImageEntity issueImage = 
                         capstone_project.entity.issue.IssueImageEntity.builder()
                             .imageUrl(imageUrl)
+                            .description("Ảnh hàng hóa bị hư hại")
                             .issueEntity(saved)
                             .build();
                     
@@ -985,6 +1092,610 @@ public class IssueServiceImpl implements IssueService {
         issueWebSocketService.broadcastNewIssue(response);
 
         return response;
+    }
+
+    @Override
+    @Transactional
+    public GetBasicIssueResponse reportPenaltyIssue(
+            UUID vehicleAssignmentId,
+            UUID issueTypeId,
+            String violationType,
+            MultipartFile violationImage,
+            Double locationLatitude,
+            Double locationLongitude) {
+        
+        log.info("🚨 Driver reporting traffic penalty violation");
+        log.info("   - Vehicle Assignment ID: {}", vehicleAssignmentId);
+        log.info("   - Issue Type ID: {}", issueTypeId);
+        log.info("   - Violation Type: {}", violationType);
+
+        // Get VehicleAssignment
+        var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(vehicleAssignmentId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Vehicle Assignment: " + vehicleAssignmentId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Get IssueType (PENALTY category)
+        var issueType = issueTypeEntityService.findEntityById(issueTypeId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Issue Type: " + issueTypeId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate IssueType has PENALTY category
+        if (!IssueCategoryEnum.PENALTY.name().equals(issueType.getIssueCategory())) {
+            throw new IllegalStateException("Issue type must have PENALTY category");
+        }
+
+        // Create Issue
+        log.info("📍 Creating penalty issue with location: lat={}, lng={}", locationLatitude, locationLongitude);
+        
+        IssueEntity issue = IssueEntity.builder()
+                .description("Vi phạm giao thông: " + violationType)
+                .locationLatitude(locationLatitude != null ? 
+                                 java.math.BigDecimal.valueOf(locationLatitude) : null)
+                .locationLongitude(locationLongitude != null ? 
+                                  java.math.BigDecimal.valueOf(locationLongitude) : null)
+                .status(IssueEnum.OPEN.name())
+                .reportedAt(java.time.LocalDateTime.now())
+                .tripStatusAtReport(null) // Penalty doesn't affect order details
+                .vehicleAssignmentEntity(vehicleAssignment)
+                .staff(null)
+                .issueTypeEntity(issueType)
+                .build();
+
+        // Save issue
+        IssueEntity saved = issueEntityService.save(issue);
+        log.info("✅ Penalty issue created with ID: {}", saved.getId());
+
+        // Upload penalty violation record image to Cloudinary
+        if (violationImage != null && !violationImage.isEmpty()) {
+            try {
+                log.info("📤 Uploading traffic violation record image to Cloudinary...");
+                String imageUrl = cloudinaryService.uploadFile(
+                        violationImage.getBytes(), 
+                        "penalty_" + saved.getId() + "_" + System.currentTimeMillis(), 
+                        "penalties/traffic-violations"
+                ).get("secure_url").toString();
+                
+                log.info("✅ Penalty image uploaded: {}", imageUrl);
+
+                // Save image URL to issue_images table
+                IssueImageEntity imageEntity = IssueImageEntity.builder()
+                        .imageUrl(imageUrl)
+                        .description("Biên bản vi phạm giao thông")
+                        .issueEntity(saved)
+                        .build();
+                
+                issueImageEntityService.save(imageEntity);
+                log.info("✅ Penalty image saved to database");
+                
+            } catch (Exception e) {
+                log.error("❌ Error uploading penalty image: {}", e.getMessage(), e);
+                throw new RuntimeException("Failed to upload penalty violation image", e);
+            }
+        }
+
+        // Fetch full issue with all nested objects
+        GetBasicIssueResponse response = getBasicIssue(saved.getId());
+
+        // Broadcast penalty issue to staff
+        log.info("🚨 Penalty issue created, broadcasting to staff: {}", response.id());
+        issueWebSocketService.broadcastNewIssue(response);
+
+        return response;
+    }
+
+    // ===== ORDER_REJECTION flow implementations =====
+
+    @Override
+    @Transactional
+    public GetBasicIssueResponse reportOrderRejection(capstone_project.dtos.request.issue.ReportOrderRejectionRequest request) {
+        log.info("🚫 Driver reporting order rejection for vehicle assignment: {} with {} package(s)", 
+                 request.vehicleAssignmentId(), request.orderDetailIds().size());
+
+        // Get Vehicle Assignment
+        var vehicleAssignment = vehicleAssignmentEntityService.findEntityById(request.vehicleAssignmentId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Vehicle Assignment: " + request.vehicleAssignmentId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Auto-find ORDER_REJECTION issue type (server determines issue type)
+        var issueType = issueTypeEntityService.findAll().stream()
+                .filter(it -> IssueCategoryEnum.ORDER_REJECTION.name().equals(it.getIssueCategory()))
+                .filter(IssueTypeEntity::getIsActive)
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException(
+                        "No active ORDER_REJECTION issue type found",
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        log.info("📋 Auto-selected issue type: {} ({})", issueType.getIssueTypeName(), issueType.getId());
+
+        // Get and validate selected order details
+        List<OrderDetailEntity> selectedOrderDetails = new java.util.ArrayList<>();
+        for (UUID orderDetailId : request.orderDetailIds()) {
+            OrderDetailEntity orderDetail = orderDetailEntityService.findEntityById(orderDetailId)
+                    .orElseThrow(() -> new NotFoundException(
+                            "Order detail not found: " + orderDetailId,
+                            ErrorEnum.NOT_FOUND.getErrorCode()
+                    ));
+            
+            // Validate order detail belongs to this vehicle assignment
+            if (!orderDetail.getVehicleAssignmentEntity().getId().equals(vehicleAssignment.getId())) {
+                throw new BadRequestException(
+                        "Order detail " + orderDetailId + " does not belong to vehicle assignment " + vehicleAssignment.getId(),
+                        ErrorEnum.INVALID.getErrorCode()
+                );
+            }
+            
+            selectedOrderDetails.add(orderDetail);
+        }
+
+        // Auto-generate description based on number of packages
+        String autoDescription = String.format(
+                "Người nhận từ chối nhận %d kiện hàng. Tracking codes: %s",
+                selectedOrderDetails.size(),
+                selectedOrderDetails.stream()
+                        .map(od -> od.getOrderEntity().getOrderCode())
+                        .collect(java.util.stream.Collectors.joining(", "))
+        );
+
+        // Save trip status at report (all order details in vehicle assignment)
+        List<OrderDetailEntity> allOrderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(vehicleAssignment);
+        String tripStatusAtReport = allOrderDetails.stream()
+                .map(OrderDetailEntity::getStatus)
+                .reduce((s1, s2) -> s1 + "," + s2)
+                .orElse("");
+        
+        log.info("💾 Saving trip status at report: {}", tripStatusAtReport);
+        
+        // Update ONLY selected order details to IN_TROUBLES
+        selectedOrderDetails.forEach(orderDetail -> {
+            String oldStatus = orderDetail.getStatus();
+            orderDetail.setStatus(OrderDetailStatusEnum.IN_TROUBLES.name());
+            orderDetailEntityService.save(orderDetail);
+            log.info("🚨 Updated order detail {} ({}) from {} to IN_TROUBLES", 
+                     orderDetail.getId(), 
+                     orderDetail.getOrderEntity().getOrderCode(),
+                     oldStatus);
+        });
+
+        // Create Issue
+        IssueEntity issue = IssueEntity.builder()
+                .description(autoDescription)
+                .locationLatitude(request.locationLatitude() != null ? java.math.BigDecimal.valueOf(request.locationLatitude()) : null)
+                .locationLongitude(request.locationLongitude() != null ? java.math.BigDecimal.valueOf(request.locationLongitude()) : null)
+                .status(IssueEnum.OPEN.name())
+                .reportedAt(java.time.LocalDateTime.now())
+                .tripStatusAtReport(tripStatusAtReport)
+                .vehicleAssignmentEntity(vehicleAssignment)
+                .staff(null)
+                .issueTypeEntity(issueType)
+                .build();
+
+        // Save issue first to get ID
+        IssueEntity saved = issueEntityService.save(issue);
+        log.info("✅ ORDER_REJECTION issue created with ID: {} for {} package(s)", 
+                 saved.getId(), selectedOrderDetails.size());
+
+        // Link selected order details to this issue (bidirectional)
+        selectedOrderDetails.forEach(orderDetail -> {
+            orderDetail.setIssueEntity(saved);
+            orderDetailEntityService.save(orderDetail);
+        });
+
+        // Fetch full issue with all nested objects
+        GetBasicIssueResponse response = getBasicIssue(saved.getId());
+
+        // Broadcast to staff
+        log.info("🚨 ORDER_REJECTION issue created, broadcasting to staff: {}", response.id());
+        issueWebSocketService.broadcastNewIssue(response);
+
+        return response;
+    }
+
+    @Override
+    public capstone_project.dtos.response.issue.ReturnShippingFeeResponse calculateReturnShippingFee(UUID issueId) {
+        log.info("💰 Calculating return shipping fee for issue: {}", issueId);
+
+        // Get Issue
+        IssueEntity issue = issueEntityService.findEntityById(issueId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Issue: " + issueId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate issue type is ORDER_REJECTION
+        if (!IssueCategoryEnum.ORDER_REJECTION.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new IllegalStateException("Issue is not ORDER_REJECTION type");
+        }
+
+        // Get ONLY the selected order details for return (linked to this issue)
+        List<OrderDetailEntity> selectedOrderDetails = issue.getOrderDetails() != null 
+                ? issue.getOrderDetails() 
+                : java.util.Collections.emptyList();
+
+        if (selectedOrderDetails.isEmpty()) {
+            throw new IllegalStateException("No order details selected for return in this issue");
+        }
+
+        log.info("📦 Calculating fee for {} selected package(s) to return", selectedOrderDetails.size());
+
+        // Get order from first order detail (all should belong to same order)
+        var order = selectedOrderDetails.get(0).getOrderEntity();
+
+        // Calculate distance from delivery address back to pickup address (return route)
+        java.math.BigDecimal distanceKm = contractService.calculateDistanceKm(
+                order.getDeliveryAddress(), 
+                order.getPickupAddress()
+        );
+
+        log.info("📏 Return distance: {} km", distanceKm);
+
+        // Get contract to calculate pricing
+        var contract = contractEntityService.getContractByOrderId(order.getId())
+                .orElseThrow(() -> new IllegalStateException("No contract found for order: " + order.getId()));
+
+        // Calculate vehicle count map from SELECTED order details only
+        // This ensures pricing is accurate based on actual packages being returned
+        java.util.Map<UUID, Integer> vehicleCountMap = selectedOrderDetails.stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        od -> od.getOrderSizeEntity().getId(),
+                        java.util.stream.Collectors.summingInt(od -> 1)
+                ));
+
+        log.info("🚗 Vehicle count map for return (selected packages only): {}", vehicleCountMap);
+
+        // Calculate total weight of selected packages for logging
+        double totalWeight = selectedOrderDetails.stream()
+                .mapToDouble(od -> od.getWeightBaseUnit() != null ? od.getWeightBaseUnit().doubleValue() : 0.0)
+                .sum();
+        log.info("⚖️ Total weight of packages to return: {} kg", totalWeight);
+
+        // Calculate return shipping fee using contract pricing logic
+        PriceCalculationResponse priceResponse =
+                contractService.calculateTotalPrice(contract, distanceKm, vehicleCountMap);
+
+        log.info("💵 Calculated return shipping fee: {} VND for {} package(s)", 
+                 priceResponse.getTotalPrice(), selectedOrderDetails.size());
+
+        // Determine final fee (adjusted fee if set by staff, otherwise calculated fee)
+        java.math.BigDecimal finalFee = issue.getAdjustedReturnFee() != null 
+                ? issue.getAdjustedReturnFee() 
+                : priceResponse.getTotalPrice();
+
+        return new capstone_project.dtos.response.issue.ReturnShippingFeeResponse(
+                issue.getId(),
+                priceResponse.getTotalPrice(),
+                issue.getAdjustedReturnFee(),
+                finalFee,
+                distanceKm,
+                priceResponse
+        );
+    }
+
+    @Override
+    @Transactional
+    public capstone_project.dtos.response.issue.OrderRejectionDetailResponse processOrderRejection(
+            capstone_project.dtos.request.issue.ProcessOrderRejectionRequest request
+    ) {
+        log.info("⚙️ Staff processing ORDER_REJECTION issue: {}", request.issueId());
+
+        // Get Issue
+        IssueEntity issue = issueEntityService.findEntityById(request.issueId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Issue: " + request.issueId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate issue type
+        if (!IssueCategoryEnum.ORDER_REJECTION.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new IllegalStateException("Issue is not ORDER_REJECTION type");
+        }
+
+        // Calculate return shipping fee
+        capstone_project.dtos.response.issue.ReturnShippingFeeResponse feeResponse = calculateReturnShippingFee(request.issueId());
+
+        // Update adjusted fee if provided
+        if (request.adjustedReturnFee() != null) {
+            issue.setAdjustedReturnFee(request.adjustedReturnFee());
+            log.info("💵 Staff adjusted return fee to: {}", request.adjustedReturnFee());
+        }
+
+        // Set return shipping fee
+        issue.setReturnShippingFee(feeResponse.calculatedFee());
+
+        // Get final fee for transaction
+        java.math.BigDecimal finalFee = issue.getAdjustedReturnFee() != null 
+                ? issue.getAdjustedReturnFee() 
+                : issue.getReturnShippingFee();
+
+        // Get order to create transaction
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(
+                issue.getVehicleAssignmentEntity()
+        );
+        var order = orderDetails.get(0).getOrderEntity();
+        var contract = contractEntityService.getContractByOrderId(order.getId())
+                .orElseThrow(() -> new IllegalStateException("No contract found for order: " + order.getId()));
+
+        // Create Transaction for return shipping payment
+        capstone_project.entity.order.transaction.TransactionEntity transaction = 
+                capstone_project.entity.order.transaction.TransactionEntity.builder()
+                .amount(finalFee)
+                .status(capstone_project.common.enums.TransactionEnum.PENDING.name())
+                .currencyCode("VND")
+                .paymentProvider("PayOS") // or Stripe, depending on your setup
+                .contractEntity(contract)
+                .build();
+
+        transaction = transactionEntityService.save(transaction);
+        log.info("💳 Created transaction for return shipping: {}", transaction.getId());
+
+        issue.setReturnTransaction(transaction);
+
+        // Create new journey for return route: carrier → pickup → delivery → pickup → carrier
+        capstone_project.entity.order.order.JourneyHistoryEntity returnJourney = 
+                capstone_project.entity.order.order.JourneyHistoryEntity.builder()
+                .journeyName("Return Journey for " + issue.getVehicleAssignmentEntity().getTrackingCode())
+                .journeyType("RETURN")
+                .status("INACTIVE") // Will be activated when customer pays
+                .reasonForReroute("Order rejection by recipient")
+                .totalTollFee(request.totalTollFee())
+                .totalTollCount(request.totalTollCount())
+                .vehicleAssignment(issue.getVehicleAssignmentEntity())
+                .build();
+
+        // Create journey segments from request
+        List<capstone_project.entity.order.order.JourneySegmentEntity> segments = new java.util.ArrayList<>();
+        
+        for (capstone_project.dtos.request.order.RouteSegmentInfo segmentInfo : request.routeSegments()) {
+            capstone_project.entity.order.order.JourneySegmentEntity segment = 
+                    capstone_project.entity.order.order.JourneySegmentEntity.builder()
+                    .segmentOrder(segmentInfo.segmentOrder())
+                    .startPointName(segmentInfo.startPointName())
+                    .endPointName(segmentInfo.endPointName())
+                    .startLatitude(segmentInfo.startLatitude())
+                    .startLongitude(segmentInfo.startLongitude())
+                    .endLatitude(segmentInfo.endLatitude())
+                    .endLongitude(segmentInfo.endLongitude())
+                    .distanceMeters(segmentInfo.distanceMeters())
+                    .status("PENDING")
+                    .journeyHistory(returnJourney)
+                    .build();
+
+            // Store path coordinates and toll details JSON (already in JSON format)
+            segment.setPathCoordinatesJson(segmentInfo.pathCoordinatesJson());
+            
+            // Convert toll details list to JSON if not empty
+            if (segmentInfo.tollDetails() != null && !segmentInfo.tollDetails().isEmpty()) {
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    segment.setTollDetailsJson(objectMapper.writeValueAsString(segmentInfo.tollDetails()));
+                } catch (Exception e) {
+                    log.warn("Failed to serialize toll details: {}", e.getMessage());
+                }
+            }
+
+            segments.add(segment);
+        }
+
+        returnJourney.setJourneySegments(segments);
+        returnJourney = journeyHistoryEntityService.save(returnJourney);
+        log.info("🛣️ Created INACTIVE return journey: {}", returnJourney.getId());
+
+        issue.setReturnJourney(returnJourney);
+
+        // Set payment deadline (default 24 hours)
+        int deadlineHours = request.paymentDeadlineHours() != null ? request.paymentDeadlineHours() : 24;
+        issue.setPaymentDeadline(java.time.LocalDateTime.now().plusHours(deadlineHours));
+
+        // Update issue status to IN_PROGRESS
+        issue.setStatus(IssueEnum.IN_PROGRESS.name());
+
+        // Save issue
+        issue = issueEntityService.save(issue);
+        log.info("✅ ORDER_REJECTION issue processed, status: IN_PROGRESS");
+
+        // Return detail response
+        return getOrderRejectionDetail(issue.getId());
+    }
+
+    @Override
+    public capstone_project.dtos.response.issue.OrderRejectionDetailResponse getOrderRejectionDetail(UUID issueId) {
+        log.info("📋 Getting ORDER_REJECTION detail for issue: {}", issueId);
+
+        // Get Issue with all relations
+        IssueEntity issue = issueEntityService.findByIdWithDetails(issueId)
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Issue: " + issueId,
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate issue type
+        if (!IssueCategoryEnum.ORDER_REJECTION.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new IllegalStateException("Issue is not ORDER_REJECTION type");
+        }
+
+        // Get order details
+        List<OrderDetailEntity> orderDetails = orderDetailEntityService.findByVehicleAssignmentEntity(
+                issue.getVehicleAssignmentEntity()
+        );
+
+        // Map to response
+        List<capstone_project.dtos.response.issue.OrderDetailForIssueResponse> affectedOrderDetails = 
+                orderDetails.stream()
+                .map(od -> new capstone_project.dtos.response.issue.OrderDetailForIssueResponse(
+                        od.getTrackingCode(),
+                        od.getDescription(),
+                        od.getWeightBaseUnit(),
+                        od.getUnit()
+                ))
+                .collect(java.util.stream.Collectors.toList());
+
+        // Get customer info from order
+        var order = orderDetails.get(0).getOrderEntity();
+        var customer = order.getSender();
+        capstone_project.dtos.response.user.CustomerInfoResponse customerInfo = 
+                new capstone_project.dtos.response.user.CustomerInfoResponse(
+                        customer.getId(),
+                        customer.getRepresentativeName(),
+                        customer.getUser() != null ? customer.getUser().getEmail() : null,
+                        customer.getRepresentativePhone(),
+                        customer.getCompanyName()
+                );
+
+        // Map transaction if exists
+        capstone_project.dtos.response.order.transaction.TransactionResponse transactionResponse = null;
+        if (issue.getReturnTransaction() != null) {
+            var tx = issue.getReturnTransaction();
+            // Convert gateway order code from String to Long
+            Long gatewayOrderCode = null;
+            if (tx.getGatewayOrderCode() != null) {
+                try {
+                    gatewayOrderCode = Long.parseLong(tx.getGatewayOrderCode());
+                } catch (NumberFormatException e) {
+                    log.warn("Cannot convert gateway order code to Long: {}", tx.getGatewayOrderCode());
+                }
+            }
+            
+            transactionResponse = new capstone_project.dtos.response.order.transaction.TransactionResponse(
+                    tx.getId().toString(),
+                    tx.getPaymentProvider(),
+                    null, // orderCode - not available in return transaction
+                    tx.getAmount(),
+                    tx.getCurrencyCode(),
+                    tx.getGatewayResponse(),
+                    gatewayOrderCode,
+                    tx.getStatus(),
+                    tx.getPaymentDate(),
+                    null // contractId not needed here
+            );
+        }
+
+        // Map return journey if exists
+        capstone_project.dtos.response.order.JourneyHistoryResponse journeyResponse = null;
+        if (issue.getReturnJourney() != null) {
+            var journey = issue.getReturnJourney();
+            // Simple journey response without full segment details
+            // Calculate total distance from segments
+            Double totalDistance = journey.getJourneySegments() != null
+                    ? journey.getJourneySegments().stream()
+                            .mapToInt(seg -> seg.getDistanceMeters() != null ? seg.getDistanceMeters() : 0)
+                            .sum() / 1000.0 // Convert meters to km
+                    : 0.0;
+            
+            journeyResponse = new capstone_project.dtos.response.order.JourneyHistoryResponse(
+                    journey.getId(),
+                    journey.getJourneyName(),
+                    journey.getJourneyType(),
+                    journey.getStatus(),
+                    journey.getTotalTollFee(),
+                    journey.getTotalTollCount(),
+                    totalDistance,
+                    journey.getReasonForReroute(),
+                    journey.getVehicleAssignment() != null ? journey.getVehicleAssignment().getId() : null,
+                    null, // segments - will be null for now, can be expanded if needed
+                    journey.getCreatedAt(),
+                    journey.getModifiedAt()
+            );
+        }
+
+        // Calculate fees
+        java.math.BigDecimal finalFee = issue.getAdjustedReturnFee() != null 
+                ? issue.getAdjustedReturnFee() 
+                : issue.getReturnShippingFee();
+
+        return new capstone_project.dtos.response.issue.OrderRejectionDetailResponse(
+                issue.getId(),
+                issue.getId().toString(), // issueCode - can be enhanced
+                issue.getDescription(),
+                issue.getStatus(),
+                issue.getReportedAt(),
+                issue.getResolvedAt(),
+                customerInfo,
+                issue.getReturnShippingFee(),
+                issue.getAdjustedReturnFee(),
+                finalFee,
+                transactionResponse,
+                issue.getPaymentDeadline(),
+                journeyResponse,
+                affectedOrderDetails,
+                // Get return delivery images from issueImages
+                issue.getIssueImages() != null
+                        ? issue.getIssueImages().stream()
+                                .filter(img -> "RETURN_DELIVERY".equals(img.getDescription()))
+                                .map(IssueImageEntity::getImageUrl)
+                                .collect(java.util.stream.Collectors.toList())
+                        : java.util.Collections.emptyList()
+        );
+    }
+
+    @Override
+    @Transactional
+    public GetBasicIssueResponse confirmReturnDelivery(
+            capstone_project.dtos.request.issue.ConfirmReturnDeliveryRequest request
+    ) {
+        log.info("📦 Driver confirming return delivery for issue: {}", request.issueId());
+
+        // Get Issue
+        IssueEntity issue = issueEntityService.findEntityById(request.issueId())
+                .orElseThrow(() -> new NotFoundException(
+                        ErrorEnum.NOT_FOUND.getMessage() + " Issue: " + request.issueId(),
+                        ErrorEnum.NOT_FOUND.getErrorCode()
+                ));
+
+        // Validate issue type
+        if (!IssueCategoryEnum.ORDER_REJECTION.name().equals(issue.getIssueTypeEntity().getIssueCategory())) {
+            throw new IllegalStateException("Issue is not ORDER_REJECTION type");
+        }
+
+        // Validate issue is in IN_PROGRESS status
+        if (!IssueEnum.IN_PROGRESS.name().equals(issue.getStatus())) {
+            throw new IllegalStateException("Issue must be IN_PROGRESS to confirm return delivery");
+        }
+
+        // Create IssueImageEntity for each return delivery image
+        if (request.returnDeliveryImages() != null && !request.returnDeliveryImages().isEmpty()) {
+            for (String imageUrl : request.returnDeliveryImages()) {
+                IssueImageEntity imageEntity = IssueImageEntity.builder()
+                        .imageUrl(imageUrl)
+                        .description("RETURN_DELIVERY")
+                        .issueEntity(issue)
+                        .build();
+                issueImageEntityService.save(imageEntity);
+                log.info("📸 Saved return delivery image for issue: {}", issue.getId());
+            }
+        }
+
+        // Update ONLY selected order details to RETURNED status
+        List<OrderDetailEntity> selectedOrderDetails = issue.getOrderDetails() != null 
+                ? issue.getOrderDetails() 
+                : java.util.Collections.emptyList();
+        
+        if (selectedOrderDetails.isEmpty()) {
+            throw new IllegalStateException("No order details found in issue for return");
+        }
+        
+        selectedOrderDetails.forEach(orderDetail -> {
+            orderDetail.setStatus(OrderDetailStatusEnum.RETURNED.name());
+            orderDetailEntityService.save(orderDetail);
+            log.info("✅ Updated order detail {} ({}) to RETURNED", 
+                     orderDetail.getId(), 
+                     orderDetail.getTrackingCode());
+        });
+
+        // Mark issue as RESOLVED
+        issue.setStatus(IssueEnum.RESOLVED.name());
+        issue.setResolvedAt(java.time.LocalDateTime.now());
+
+        // Save issue
+        issue = issueEntityService.save(issue);
+        log.info("✅ ORDER_REJECTION issue resolved, goods returned to pickup");
+
+        return getBasicIssue(issue.getId());
     }
 
 }

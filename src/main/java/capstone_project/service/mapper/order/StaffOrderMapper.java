@@ -76,8 +76,8 @@ public class StaffOrderMapper {
         BigDecimal adjustedValue = contractResponse != null ? contractResponse.adjustedValue() : null;
         BigDecimal depositAmount = calculateDepositAmount(effectiveTotal, adjustedValue);
 
-        // Convert Order with enhanced information for staff, passing effective total
-        StaffOrderResponse staffOrderResponse = toStaffOrderResponseWithEnhancedInfo(orderResponse, effectiveTotal, depositAmount);
+        // Convert Order with enhanced information for staff
+        StaffOrderResponse staffOrderResponse = toStaffOrderResponseWithEnhancedInfo(orderResponse, depositAmount);
 
         // Convert Contract
         SimpleContractResponse simpleContractResponse = contractResponse != null ?
@@ -95,7 +95,7 @@ public class StaffOrderMapper {
         );
     }
 
-    private StaffOrderResponse toStaffOrderResponseWithEnhancedInfo(GetOrderResponse response, BigDecimal effectiveTotal, BigDecimal depositAmount) {
+    private StaffOrderResponse toStaffOrderResponseWithEnhancedInfo(GetOrderResponse response, BigDecimal depositAmount) {
         String deliveryAddress = combineAddress(
                 response.deliveryAddress().street(),
                 response.deliveryAddress().ward(),
@@ -205,11 +205,7 @@ public class StaffOrderMapper {
             log.error("Error retrieving vehicle assignment entity from database: {}", e.getMessage(), e);
         }
 
-        List<PenaltyHistoryResponse> penalties = getPenaltiesByVehicleAssignmentId(vehicleAssignmentId,
-                vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver1() != null ?
-                        vehicleAssignmentEntity.getDriver1().getUser().getId() : vehicleAssignmentResponse.driver_id_1(),
-                vehicleAssignmentEntity != null && vehicleAssignmentEntity.getDriver2() != null ?
-                        vehicleAssignmentEntity.getDriver2().getUser().getId() : vehicleAssignmentResponse.driver_id_2());
+        List<PenaltyHistoryResponse> penalties = getPenaltiesByVehicleAssignmentId(vehicleAssignmentId);
 
         VehicleFuelConsumptionResponse fuelConsumption = getFuelConsumptionByVehicleAssignmentId(vehicleAssignmentId);
         List<String> photoCompletions = getPhotoCompletionsByVehicleAssignmentId(vehicleAssignmentId);
@@ -301,9 +297,6 @@ public class StaffOrderMapper {
         }
 
         // Ensure lists are non-null
-        if (seals == null) seals = Collections.emptyList();
-        if (journeyHistories == null) journeyHistories = Collections.emptyList();
-        if (issues == null) issues = Collections.emptyList();
         if (photoCompletions == null) photoCompletions = Collections.emptyList();
 
         String status = vehicleAssignmentEntity != null ? vehicleAssignmentEntity.getStatus() : vehicleAssignmentResponse.status();
@@ -363,31 +356,30 @@ public class StaffOrderMapper {
         }
     }
 
-    private List<PenaltyHistoryResponse> getPenaltiesByVehicleAssignmentId(UUID vehicleAssignmentId, UUID primaryDriverId, UUID secondaryDriverId) {
+    private List<PenaltyHistoryResponse> getPenaltiesByVehicleAssignmentId(UUID vehicleAssignmentId) {
         if (vehicleAssignmentId == null) return new ArrayList<>();
 
         try {
             List<PenaltyHistoryEntity> penalties = penaltyHistoryEntityService.findByVehicleAssignmentId(vehicleAssignmentId);
             return penalties.stream()
                     .map(entity -> {
-                        StaffDriverResponse driverInfo = null;
-                        if (entity.getIssueBy() != null) {
-                            driverInfo = getEnhancedDriverInfo(entity.getIssueBy().getId());
-                        } else if (primaryDriverId != null) {
-                            driverInfo = getEnhancedDriverInfo(primaryDriverId);
+                        // Get driver information if available
+                        StaffDriverResponse driver = null;
+                        if (entity.getIssueBy() != null && entity.getIssueBy().getUser() != null) {
+                            driver = getEnhancedDriverInfo(entity.getIssueBy().getUser().getId());
                         }
 
                         return new PenaltyHistoryResponse(
                                 entity.getId(),
                                 entity.getViolationType(),
-                                entity.getViolationDescription(),
-                                entity.getPenaltyAmount(),
+                                null, // violationDescription - not available in entity
+                                null, // penaltyAmount - not available in entity
                                 entity.getPenaltyDate(),
-                                entity.getLocation(),
-                                entity.getStatus(),
-                                entity.getPaymentDate(),
-                                entity.getDisputeReason(),
-                                driverInfo
+                                null, // location - not available in entity
+                                null, // status - not available in entity
+                                null, // paymentDate - not available in entity
+                                null, // disputeReason - not available in entity
+                                driver
                         );
                     })
                     .collect(Collectors.toList());
@@ -471,11 +463,11 @@ public class StaffOrderMapper {
             address.append(street);
         }
         if (ward != null && !ward.isEmpty()) {
-            if (address.length() > 0) address.append(", ");
+            if (!address.isEmpty()) address.append(", ");
             address.append(ward);
         }
         if (province != null && !province.isEmpty()) {
-            if (address.length() > 0) address.append(", ");
+            if (!address.isEmpty()) address.append(", ");
             address.append(province);
         }
         return address.toString();
@@ -545,20 +537,7 @@ public class StaffOrderMapper {
         return new SimpleIssueImageResponse(simpleIssue, images);
     }
 
-    /**
-     * Calculate the total distance by summing up distances from all journey segments
-     * @param segments The list of journey segments
-     * @return The total distance as a Double, or 0.0 if segments are null or empty
-     */
-    private Double calculateTotalDistance(List<JourneySegmentResponse> segments) {
-        if (segments == null || segments.isEmpty()) {
-            return 0.0;
-        }
 
-        return segments.stream()
-                .mapToDouble(segment -> segment.distanceMeters() != null ? segment.distanceMeters() : 0.0)
-                .sum();
-    }
 
     /**
      * Calculate deposit amount based on adjusted value (if available) or total price and deposit percent from contract settings

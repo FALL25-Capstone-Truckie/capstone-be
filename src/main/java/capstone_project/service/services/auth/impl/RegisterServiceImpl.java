@@ -418,12 +418,22 @@ public class RegisterServiceImpl implements RegisterService {
         if (userByEmail.isPresent()) {
             final var usersEntity = userByEmail.get();
 
+            // Revoke all old refresh tokens for this user (same as normal login)
+            List<RefreshTokenEntity> oldTokens = refreshTokenEntityService.findByUserIdAndRevokedFalse(usersEntity.getId());
+
+            oldTokens.forEach(refreshTokenEntity -> {
+                refreshTokenEntity.setRevoked(true);
+            });
+
+            refreshTokenEntityService.saveAll(oldTokens);
+
             final var token = JWTUtil.generateToken(usersEntity);
             final var refreshTokenString = JWTUtil.generateRefreshToken(usersEntity);
 
+            // FIX: Use .user() instead of .id()
             RefreshTokenEntity refreshTokenEntity = RefreshTokenEntity.builder()
                     .token(refreshTokenString)
-                    .id(usersEntity.getId())
+                    .user(usersEntity)
                     .createdAt(LocalDateTime.now())
                     .expiredAt(LocalDateTime.now().plusDays(30))
                     .revoked(false)
@@ -470,20 +480,33 @@ public class RegisterServiceImpl implements RegisterService {
 
         log.info("[refreshAccessToken] ✅ Token validation passed - user: {}", user.getUsername());
 
-        // Generate new access token ONLY
-        // Keep the same refresh token to avoid cookie sync issues on page reload
-        String newAccessToken = JWTUtil.generateToken(user);
-        log.info("[refreshAccessToken] Generated new access token: {}...", newAccessToken.substring(0, 20));
-        
-        // Update token's last used time (optional - for tracking)
-        // This helps with security monitoring without breaking the flow
-        tokenEntity.setCreatedAt(LocalDateTime.now());
+        // SECURITY: Implement token rotation
+        // 1. Revoke the old refresh token to prevent reuse
+        tokenEntity.setRevoked(true);
         refreshTokenEntityService.save(tokenEntity);
+        log.info("[refreshAccessToken] 🔒 Old refresh token revoked");
         
-        log.info("[refreshAccessToken] ✅ Access token refreshed - returning same refresh token to avoid sync issues");
+        // 2. Generate new access token AND new refresh token
+        String newAccessToken = JWTUtil.generateToken(user);
+        String newRefreshToken = JWTUtil.generateRefreshToken(user);
+        log.info("[refreshAccessToken] Generated new access token: {}...", newAccessToken.substring(0, 20));
+        log.info("[refreshAccessToken] Generated new refresh token: {}...", newRefreshToken.substring(0, 20));
+        
+        // 3. Save new refresh token to database
+        RefreshTokenEntity newTokenEntity = RefreshTokenEntity.builder()
+                .token(newRefreshToken)
+                .user(user)
+                .createdAt(LocalDateTime.now())
+                .expiredAt(LocalDateTime.now().plusDays(30))
+                .revoked(false)
+                .build();
+        refreshTokenEntityService.save(newTokenEntity);
+        log.info("[refreshAccessToken] 💾 New refresh token saved to database");
+        
+        log.info("[refreshAccessToken] ✅ Token rotation completed successfully");
 
-        // Return the SAME refresh token (not a new one) to prevent cookie sync issues
-        return userMapper.mapRefreshTokenResponse(user, newAccessToken, refreshToken);
+        // Return BOTH new tokens (token rotation for security)
+        return userMapper.mapRefreshTokenResponse(user, newAccessToken, newRefreshToken);
     }
 
     @Override

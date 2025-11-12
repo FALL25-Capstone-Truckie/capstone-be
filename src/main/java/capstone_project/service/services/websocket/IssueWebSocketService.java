@@ -87,4 +87,171 @@ public class IssueWebSocketService {
             log.error("❌ Error sending seal assignment notification: {}", e.getMessage(), e);
         }
     }
+
+    /**
+     * Send notification to specific driver for ORDER_REJECTION payment success
+     * @param driverId Driver user ID
+     * @param issueId Issue ID
+     * @param vehicleAssignmentId Vehicle assignment ID
+     * @param returnJourneyId Return journey ID
+     */
+    public void sendReturnPaymentSuccessNotification(
+            java.util.UUID driverId,
+            java.util.UUID issueId,
+            java.util.UUID vehicleAssignmentId,
+            java.util.UUID returnJourneyId) {
+        log.info("📲 Sending return payment success notification to driver: {}", driverId);
+        
+        try {
+            // Create notification payload
+            var notification = new java.util.HashMap<String, Object>();
+            notification.put("type", "RETURN_PAYMENT_SUCCESS");
+            notification.put("priority", "HIGH");
+            notification.put("title", "Khách hàng đã thanh toán");
+            notification.put("message", "Khách hàng đã thanh toán cước trả hàng. Vui lòng tiến hành trả hàng về điểm pickup.");
+            notification.put("issueId", issueId.toString());
+            notification.put("vehicleAssignmentId", vehicleAssignmentId.toString());
+            if (returnJourneyId != null) {
+                notification.put("returnJourneyId", returnJourneyId.toString());
+            }
+            notification.put("timestamp", java.time.Instant.now().toString());
+            
+            // Send to specific driver via user-specific topic
+            messagingTemplate.convertAndSend(
+                "/topic/driver/" + driverId + "/notifications", 
+                notification
+            );
+            
+            log.info("✅ Return payment success notification sent to driver: {}", driverId);
+        } catch (Exception e) {
+            log.error("❌ Error sending return payment notification: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Send notification to specific driver for ORDER_REJECTION payment timeout
+     * When customer doesn't pay within deadline, driver should continue original route
+     * @param driverId Driver user ID
+     * @param issueId Issue ID
+     * @param vehicleAssignmentId Vehicle assignment ID
+     */
+    public void sendReturnPaymentTimeoutNotification(
+            java.util.UUID driverId,
+            java.util.UUID issueId,
+            java.util.UUID vehicleAssignmentId) {
+        log.info("📲 Sending return payment timeout notification to driver: {}", driverId);
+        
+        try {
+            // Create notification payload
+            var notification = new java.util.HashMap<String, Object>();
+            notification.put("type", "RETURN_PAYMENT_TIMEOUT");
+            notification.put("priority", "HIGH");
+            notification.put("title", "Khách hàng không thanh toán");
+            notification.put("message", "Khách hàng đã hết hạn thanh toán cước trả hàng. Vui lòng tiếp tục theo lộ trình ban đầu về carrier. Các kiện hàng bị từ chối sẽ được hủy.");
+            notification.put("issueId", issueId.toString());
+            notification.put("vehicleAssignmentId", vehicleAssignmentId.toString());
+            notification.put("timestamp", java.time.Instant.now().toString());
+            
+            // Send to specific driver via user-specific topic
+            messagingTemplate.convertAndSend(
+                "/topic/driver/" + driverId + "/notifications", 
+                notification
+            );
+            
+            log.info("✅ Return payment timeout notification sent to driver: {}", driverId);
+        } catch (Exception e) {
+            log.error("❌ Error sending return payment timeout notification: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Send notification to specific driver when damage issue is resolved
+     * Driver can continue the trip after staff resolves the issue
+     * @param driverId Driver user ID
+     * @param issue The resolved issue
+     * @param staffName Staff who resolved the issue
+     */
+    public void sendDamageResolvedNotification(
+            String driverId,
+            GetBasicIssueResponse issue,
+            String staffName) {
+        log.info("📲 Sending damage resolved notification to driver: {}", driverId);
+        
+        try {
+            // Create notification payload
+            var notification = new java.util.HashMap<String, Object>();
+            notification.put("type", "DAMAGE_RESOLVED");
+            notification.put("priority", "HIGH");
+            notification.put("title", "Sự cố hàng hóa đã được xử lý");
+            notification.put("message", String.format(
+                "Nhân viên %s đã xử lý xong sự cố hàng hóa bị hư hỏng. Bạn có thể tiếp tục hành trình vận chuyển.",
+                staffName
+            ));
+            notification.put("issue", issue);
+            notification.put("timestamp", java.time.Instant.now().toString());
+            
+            // Send to specific driver via user-specific topic
+            messagingTemplate.convertAndSend(
+                "/topic/driver/" + driverId + "/notifications", 
+                notification
+            );
+            
+            log.info("✅ Damage resolved notification sent to driver: {}", driverId);
+        } catch (Exception e) {
+            log.error("❌ Error sending damage resolved notification: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Send message to staff when driver confirms new seal attachment
+     * @param staffId Staff user ID who assigned the seal
+     * @param driverName Driver who confirmed the seal
+     * @param newSealCode New seal code that was attached
+     * @param oldSealCode Old seal code that was removed
+     * @param sealImageUrl URL of the seal attachment image
+     * @param oldSealImageUrl URL of the old seal removal image
+     * @param trackingCode Tracking code
+     * @param journeyCode Journey code for display
+     */
+    public void sendSealConfirmationMessageToStaff(
+            String staffId,
+            String driverName,
+            String newSealCode,
+            String oldSealCode,
+            String sealImageUrl,
+            String oldSealImageUrl,
+            String trackingCode,
+            String journeyCode) {
+        log.info("📲 Sending seal confirmation message to staff: {}", staffId);
+        
+        try {
+            // Create message payload for staff
+            var message = new java.util.HashMap<String, Object>();
+            message.put("type", "SEAL_CONFIRMATION");
+            message.put("priority", "MEDIUM");
+            message.put("title", "Driver đã xác nhận gắn seal mới");
+            message.put("message", String.format(
+                "Driver %s đã xác nhận gắn seal mới %s thành công.",
+                driverName, newSealCode
+            ));
+            message.put("driverName", driverName);
+            message.put("newSealCode", newSealCode);
+            message.put("oldSealCode", oldSealCode);
+            message.put("sealImageUrl", sealImageUrl);
+            message.put("oldSealImage", oldSealImageUrl);
+            message.put("trackingCode", trackingCode);
+            message.put("journeyCode", journeyCode);
+            message.put("timestamp", java.time.Instant.now().toString());
+            
+            // Send to specific staff via user-specific topic
+            messagingTemplate.convertAndSend(
+                "/topic/staff/" + staffId + "/messages", 
+                message
+            );
+            
+            log.info("✅ Seal confirmation message sent to staff: {}", staffId);
+        } catch (Exception e) {
+            log.error("❌ Error sending seal confirmation message to staff: {}", e.getMessage(), e);
+        }
+    }
 }

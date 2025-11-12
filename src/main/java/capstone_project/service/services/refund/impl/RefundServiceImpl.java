@@ -16,6 +16,7 @@ import capstone_project.repository.entityServices.issue.IssueEntityService;
 import capstone_project.repository.entityServices.order.order.OrderDetailEntityService;
 import capstone_project.repository.entityServices.order.order.OrderEntityService;
 import capstone_project.repository.entityServices.refund.RefundEntityService;
+import capstone_project.service.mapper.issue.IssueMapper;
 import capstone_project.service.mapper.refund.RefundMapper;
 import capstone_project.service.services.cloudinary.CloudinaryService;
 import capstone_project.service.services.refund.RefundService;
@@ -40,6 +41,7 @@ public class RefundServiceImpl implements RefundService {
     private final OrderEntityService orderEntityService;
     private final CloudinaryService cloudinaryService;
     private final RefundMapper refundMapper;
+    private final IssueMapper issueMapper;
     private final IssueWebSocketService issueWebSocketService;
     private final UserContextUtils userContextUtils;
 
@@ -151,10 +153,35 @@ public class RefundServiceImpl implements RefundService {
         issue.setStatus(IssueEnum.RESOLVED.name());
         issue.setResolvedAt(LocalDateTime.now());
         issue.setStaff(staff);
-        issueEntityService.save(issue);
+        IssueEntity updatedIssue = issueEntityService.save(issue);
+        log.info("✅ Issue {} status updated to RESOLVED", issue.getId());
 
-        // Send WebSocket notification to driver
-        // issueWebSocketService.sendIssueUpdate(issue.getId(), "REFUND_PROCESSED"); // TODO: Implement this method
+        // 📲 Send WebSocket notification to driver
+        if (issue.getVehicleAssignmentEntity() != null) {
+            var driver1 = issue.getVehicleAssignmentEntity().getDriver1();
+            if (driver1 != null) {
+                String staffName = staff.getFullName();
+                String driverId = driver1.getId().toString(); // Use Driver ID, not User ID
+                
+                log.info("📦 Sending DAMAGE_RESOLVED notification to driver: {}", driverId);
+                
+                // Convert issue to response for notification
+                var issueResponse = issueMapper.toIssueBasicResponse(updatedIssue);
+                
+                // Send notification
+                issueWebSocketService.sendDamageResolvedNotification(
+                    driverId,
+                    issueResponse,
+                    staffName
+                );
+                
+                log.info("✅ DAMAGE_RESOLVED notification sent to driver: {}", driverId);
+            } else {
+                log.warn("⚠️ Cannot send notification: driver not found");
+            }
+        } else {
+            log.warn("⚠️ Cannot send notification: vehicle assignment not found");
+        }
 
         log.info("Refund processed successfully for issue: {}", request.issueId());
         return refundMapper.toRefundResponse(refund);

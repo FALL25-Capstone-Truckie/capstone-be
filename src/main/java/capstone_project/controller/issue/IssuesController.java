@@ -96,6 +96,15 @@ public class IssuesController {
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
+    // Update Issue Status (for simple status updates like PENALTY issues)
+    @PutMapping("/{issueId}/status")
+    public ResponseEntity<ApiResponse<GetBasicIssueResponse>> updateIssueStatus(
+            @PathVariable("issueId") UUID issueId,
+            @RequestParam("status") String status) {
+        final var result = issueService.updateIssueStatus(issueId, status);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
     // ==================== SEAL REPLACEMENT ENDPOINTS ====================
 
     // Driver reports seal removal issue
@@ -186,6 +195,78 @@ public class IssuesController {
         );
 
         final var result = issueService.reportDamageIssue(request);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // ==================== PENALTY REPORTING ENDPOINTS ====================
+
+    // Driver reports traffic penalty violation issue
+    @PostMapping(value = "/penalty", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<ApiResponse<GetBasicIssueResponse>> reportPenaltyIssue(
+            @RequestParam("vehicleAssignmentId") UUID vehicleAssignmentId,
+            @RequestParam("issueTypeId") UUID issueTypeId,
+            @RequestParam("violationType") String violationType,
+            @RequestParam(value = "locationLatitude", required = false) Double locationLatitude,
+            @RequestParam(value = "locationLongitude", required = false) Double locationLongitude,
+            @RequestParam("trafficViolationRecordImage") MultipartFile trafficViolationRecordImage) {
+
+        final var result = issueService.reportPenaltyIssue(
+                vehicleAssignmentId,
+                issueTypeId,
+                violationType,
+                trafficViolationRecordImage,
+                locationLatitude,
+                locationLongitude
+        );
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // ==================== ORDER_REJECTION FLOW ENDPOINTS ====================
+
+    // Driver reports order rejection by recipient
+    // Driver simply selects packages to return, server auto-fills issue type and description
+    @PostMapping("/order-rejection")
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<ApiResponse<GetBasicIssueResponse>> reportOrderRejection(
+            @RequestBody capstone_project.dtos.request.issue.ReportOrderRejectionRequest request) {
+        final var result = issueService.reportOrderRejection(request);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // Calculate return shipping fee for ORDER_REJECTION issue
+    @GetMapping("/order-rejection/{issueId}/return-fee")
+    @PreAuthorize("hasAnyRole('STAFF', 'CUSTOMER')")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.ReturnShippingFeeResponse>> calculateReturnShippingFee(
+            @PathVariable("issueId") UUID issueId) {
+        final var result = issueService.calculateReturnShippingFee(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // Staff processes ORDER_REJECTION: create transaction and route
+    @PostMapping("/order-rejection/process")
+    @PreAuthorize("hasRole('STAFF')")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.OrderRejectionDetailResponse>> processOrderRejection(
+            @RequestBody capstone_project.dtos.request.issue.ProcessOrderRejectionRequest request) {
+        final var result = issueService.processOrderRejection(request);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // Get ORDER_REJECTION issue detail
+    @GetMapping("/order-rejection/{issueId}/detail")
+    @PreAuthorize("hasAnyRole('STAFF', 'CUSTOMER')")
+    public ResponseEntity<ApiResponse<capstone_project.dtos.response.issue.OrderRejectionDetailResponse>> getOrderRejectionDetail(
+            @PathVariable("issueId") UUID issueId) {
+        final var result = issueService.getOrderRejectionDetail(issueId);
+        return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    // Driver confirms return delivery at pickup location
+    @PutMapping("/order-rejection/confirm-return")
+    @PreAuthorize("hasRole('DRIVER')")
+    public ResponseEntity<ApiResponse<GetBasicIssueResponse>> confirmReturnDelivery(
+            @RequestBody capstone_project.dtos.request.issue.ConfirmReturnDeliveryRequest request) {
+        final var result = issueService.confirmReturnDelivery(request);
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 }
